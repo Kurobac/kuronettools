@@ -12,11 +12,11 @@ struct HomeView: View {
             List {
                 Section {
                     LabeledContent("开发阶段") {
-                        Text("Step 1")
+                        Text("Step 2A")
                             .foregroundStyle(.secondary)
                     }
 
-                    Text("Ping 已可用；其余网络工具会在后续阶段逐项启用。")
+                    Text("Ping 与 UDP DNS 已可用；其他传输和工具会在后续阶段逐项启用。")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }
@@ -63,9 +63,12 @@ struct HomeView: View {
     private func destination(
         for tool: ToolDescriptor
     ) -> some View {
-        if tool.id == "ping" {
+        switch tool.id {
+        case "ping":
             PingView()
-        } else {
+        case "dns":
+            DNSView()
+        default:
             ToolPlaceholderView(tool: tool)
         }
     }

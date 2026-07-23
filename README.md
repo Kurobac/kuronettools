@@ -5,19 +5,26 @@ NetTool 是一个面向 iPhone 和 iPad 的个人网络诊断工具箱。项目�
 
 ## 当前状态
 
-Step 1 已包含：
+Step 2A 已包含：
 
 - iOS 26 SwiftUI 应用骨架；
 - 可选择 IPv4、IPv6 或自动解析的 Ping；
 - Ping 次数、发送间隔、超时与 payload 参数；
 - 实时响应、TTL、RTT、丢包与 min/avg/max/mdev 统计；
 - 运行取消、文本结果分享与运行日志；
-- DNS、TCP、TLS、HTTP、Traceroute、端口扫描和网络信息入口；
+- UDP DNS 直连查询，可自定义服务器、端口和超时；
+- A、AAAA、CNAME、NS、MX、TXT、SOA、SRV、CAA 和 PTR；
+- DNS Header、Flags、RCODE、Answer、Authority、Additional 与原始报文；
+- TCP、TLS、HTTP、Traceroute、端口扫描和网络信息入口；
 - 应用版本与运行环境页面；
 - 独立的 `NetToolCore` Swift Package 与基础测试；
 - GitHub Actions 无签名 IPA 构建。
 
-除 Ping 外的网络工具目前显示“规划中”，会在后续步骤逐项实现。
+除 Ping 和 UDP DNS 外的网络工具目前显示“规划中”，会在后续步骤逐项实现。
+
+Step 2A 的 DNS 查询直接向指定服务器发送 UDP 报文。若响应设置了 `TC` 标志，
+应用会明确提示截断，不会自动切换 TCP。域名输入目前要求 ASCII；IDNA、EDNS 和
+DNSSEC 记录会在后续 DNS 阶段加入。
 
 ## 工程布局
 
@@ -93,7 +100,7 @@ bash scripts/build_unsigned_ipa.sh
 ## 计划
 
 1. Ping（已完成）
-2. DNS（UDP、TCP、DoT、DoH）
+2. DNS（UDP 已完成；TCP、DoT、DoH 待实现）
 3. TCP、TLS 与 HTTP
 4. Traceroute 与 TCP 端口扫描
 5. 接口、地址、路由和 Resolver 信息

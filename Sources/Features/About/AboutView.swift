@@ -30,8 +30,8 @@ struct AboutView: View {
             }
 
             Section("当前阶段") {
-                LabeledContent("里程碑", value: "Step 1")
-                Text("Ping 已支持 IPv4、IPv6、实时响应、超时统计、取消和结果分享；其他工具会按阶段逐项实现。")
+                LabeledContent("里程碑", value: "Step 2A")
+                Text("Ping 与 UDP DNS 查询已可用。DNS 的 TCP、DoT、DoH 和高级选项会继续按小阶段实现。")
                     .foregroundStyle(.secondary)
             }
         }
