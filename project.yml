@@ -1,0 +1,50 @@
+name: NetTool
+
+options:
+  minimumXcodeGenVersion: 2.46.0
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+
+packages:
+  NetToolCore:
+    path: Packages/NetToolCore
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    ENABLE_USER_SCRIPT_SANDBOXING: true
+
+targets:
+  NetTool:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+    info:
+      path: Config/Info.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.kurobac.NetTool
+        PRODUCT_NAME: NetTool
+        MARKETING_VERSION: 0.1.0
+        CURRENT_PROJECT_VERSION: 1
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SUPPORTS_MACCATALYST: false
+        CODE_SIGN_STYLE: Automatic
+      configs:
+        Debug:
+          ENABLE_PREVIEWS: true
+    dependencies:
+      - package: NetToolCore
+
+schemes:
+  NetTool:
+    build:
+      targets:
+        NetTool: all
+    run:
+      config: Debug
+    archive:
+      config: Release

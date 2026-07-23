@@ -1,0 +1,20 @@
+import Testing
+
+@testable import NetToolCore
+
+@Suite("Tool catalog")
+struct ToolCatalogTests {
+    @Test("Every tool has a unique identifier")
+    func identifiersAreUnique() {
+        let identifiers = ToolCatalog.all.map(\.id)
+
+        #expect(Set(identifiers).count == identifiers.count)
+    }
+
+    @Test("Every category contains at least one tool")
+    func categoriesArePopulated() {
+        for category in ToolCategory.allCases {
+            #expect(!ToolCatalog.tools(in: category).isEmpty)
+        }
+    }
+}

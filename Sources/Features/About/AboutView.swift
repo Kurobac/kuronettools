@@ -1,0 +1,41 @@
+import SwiftUI
+
+@MainActor
+struct AboutView: View {
+    private var metadata: AppMetadata {
+        AppMetadata.current
+    }
+
+    var body: some View {
+        Form {
+            Section("应用") {
+                LabeledContent("名称", value: metadata.name)
+                LabeledContent("版本", value: metadata.versionDescription)
+                LabeledContent("Bundle ID", value: metadata.bundleIdentifier)
+            }
+
+            Section("运行环境") {
+                LabeledContent(
+                    "最低系统",
+                    value: "iOS \(metadata.minimumSystemVersion)"
+                )
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("当前系统")
+                        .foregroundStyle(.secondary)
+                    Text(ProcessInfo.processInfo.operatingSystemVersionString)
+                        .font(.callout.monospaced())
+                        .textSelection(.enabled)
+                }
+            }
+
+            Section("当前阶段") {
+                LabeledContent("里程碑", value: "Step 0")
+                Text("当前构建只包含应用骨架、工具目录、运行日志和 CI 构建链路。网络功能会按阶段逐项实现。")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .navigationTitle("关于")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
