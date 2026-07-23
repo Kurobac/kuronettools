@@ -196,7 +196,7 @@ private struct PingSummaryView: View {
         )
         LabeledContent(
             "丢包率",
-            value: "\(summary.lossPercentage, specifier: "%.1f")%"
+            value: String(format: "%.1f%%", summary.lossPercentage)
         )
 
         if let minimum = summary.minimumMilliseconds,
@@ -205,13 +205,19 @@ private struct PingSummaryView: View {
            let deviation = summary.meanDeviationMilliseconds {
             LabeledContent(
                 "最小 / 平均",
-                value: "\(minimum, specifier: "%.3f") / "
-                    + "\(average, specifier: "%.3f") ms"
+                value: String(
+                    format: "%.3f / %.3f ms",
+                    minimum,
+                    average
+                )
             )
             LabeledContent(
                 "最大 / mdev",
-                value: "\(maximum, specifier: "%.3f") / "
-                    + "\(deviation, specifier: "%.3f") ms"
+                value: String(
+                    format: "%.3f / %.3f ms",
+                    maximum,
+                    deviation
+                )
             )
         }
     }

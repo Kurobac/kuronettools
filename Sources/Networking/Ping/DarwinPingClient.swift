@@ -211,7 +211,7 @@ private extension DarwinPingClient {
             }
 
             var storage = sockaddr_storage()
-            withUnsafeMutablePointer(to: &storage) { destination in
+            _ = withUnsafeMutablePointer(to: &storage) { destination in
                 memcpy(destination, source, Int(info.ai_addrlen))
             }
 
@@ -595,7 +595,11 @@ private extension DarwinPingClient {
         guard status == 0 else {
             throw ClientError.invalidSourceAddress
         }
-        return String(cString: hostBuffer)
+
+        let addressBytes = hostBuffer.prefix { $0 != 0 }.map {
+            UInt8(bitPattern: $0)
+        }
+        return String(decoding: addressBytes, as: UTF8.self)
     }
 
     static func socketError(operation: String) -> ClientError {
