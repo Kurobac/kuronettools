@@ -17,4 +17,10 @@ struct ToolCatalogTests {
             #expect(!ToolCatalog.tools(in: category).isEmpty)
         }
     }
+
+    @Test("Ping is the first available tool")
+    func pingIsAvailable() {
+        #expect(ToolCatalog.all.first?.id == "ping")
+        #expect(ToolCatalog.all.first?.availability == .available)
+    }
 }

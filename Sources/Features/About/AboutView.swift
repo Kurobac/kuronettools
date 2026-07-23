@@ -30,8 +30,8 @@ struct AboutView: View {
             }
 
             Section("当前阶段") {
-                LabeledContent("里程碑", value: "Step 0")
-                Text("当前构建只包含应用骨架、工具目录、运行日志和 CI 构建链路。网络功能会按阶段逐项实现。")
+                LabeledContent("里程碑", value: "Step 1")
+                Text("Ping 已支持 IPv4、IPv6、实时响应、超时统计、取消和结果分享；其他工具会按阶段逐项实现。")
                     .foregroundStyle(.secondary)
             }
         }

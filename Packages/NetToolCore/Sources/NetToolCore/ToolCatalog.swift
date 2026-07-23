@@ -20,25 +20,33 @@ public enum ToolCategory: String, CaseIterable, Hashable, Identifiable, Sendable
     }
 }
 
+public enum ToolAvailability: String, Hashable, Sendable {
+    case available
+    case planned
+}
+
 public struct ToolDescriptor: Identifiable, Hashable, Sendable {
     public let id: String
     public let title: String
     public let summary: String
     public let systemImage: String
     public let category: ToolCategory
+    public let availability: ToolAvailability
 
     public init(
         id: String,
         title: String,
         summary: String,
         systemImage: String,
-        category: ToolCategory
+        category: ToolCategory,
+        availability: ToolAvailability = .planned
     ) {
         self.id = id
         self.title = title
         self.summary = summary
         self.systemImage = systemImage
         self.category = category
+        self.availability = availability
     }
 }
 
@@ -49,7 +57,8 @@ public enum ToolCatalog {
             title: "Ping",
             summary: "ICMP 连通性与时延",
             systemImage: "dot.radiowaves.left.and.right",
-            category: .diagnostics
+            category: .diagnostics,
+            availability: .available
         ),
         ToolDescriptor(
             id: "traceroute",

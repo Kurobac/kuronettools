@@ -12,11 +12,11 @@ struct HomeView: View {
             List {
                 Section {
                     LabeledContent("开发阶段") {
-                        Text("Step 0")
+                        Text("Step 1")
                             .foregroundStyle(.secondary)
                     }
 
-                    Text("工程骨架已经就绪。下面列出的网络工具会在后续阶段逐项启用。")
+                    Text("Ping 已可用；其余网络工具会在后续阶段逐项启用。")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }
@@ -25,7 +25,7 @@ struct HomeView: View {
                     Section(category.title) {
                         ForEach(ToolCatalog.tools(in: category)) { tool in
                             NavigationLink {
-                                ToolPlaceholderView(tool: tool)
+                                destination(for: tool)
                             } label: {
                                 ToolRow(tool: tool)
                             }
@@ -58,6 +58,17 @@ struct HomeView: View {
             }
         }
     }
+
+    @ViewBuilder
+    private func destination(
+        for tool: ToolDescriptor
+    ) -> some View {
+        if tool.id == "ping" {
+            PingView()
+        } else {
+            ToolPlaceholderView(tool: tool)
+        }
+    }
 }
 
 private struct ToolRow: View {
@@ -81,9 +92,16 @@ private struct ToolRow: View {
 
             Spacer()
 
-            Text("规划中")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
+            switch tool.availability {
+            case .available:
+                Text("可用")
+                    .font(.caption2)
+                    .foregroundStyle(.green)
+            case .planned:
+                Text("规划中")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
         }
         .padding(.vertical, 3)
     }
