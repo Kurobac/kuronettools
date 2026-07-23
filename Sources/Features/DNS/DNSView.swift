@@ -33,6 +33,11 @@ struct DNSView: View {
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
 
+                PublicDNSPresetMenu(
+                    title: "常用服务器",
+                    address: $model.server
+                )
+
                 TextField(
                     "端口",
                     value: $model.port,

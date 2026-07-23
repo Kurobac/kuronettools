@@ -16,6 +16,11 @@ struct PingView: View {
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
 
+                PublicDNSPresetMenu(
+                    title: "常用目标",
+                    address: $model.host
+                )
+
                 Picker("地址族", selection: $model.addressFamily) {
                     ForEach(PingAddressFamily.allCases) { family in
                         Text(family.title)
