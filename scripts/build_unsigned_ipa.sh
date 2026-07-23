@@ -6,7 +6,8 @@ repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 build_root="${repository_root}/build"
 derived_data_path="${build_root}/DerivedData"
 app_path="${derived_data_path}/Build/Products/Release-iphoneos/NetTool.app"
-ipa_path="${build_root}/NetTool-unsigned.ipa"
+package_version="$(bash "${repository_root}/scripts/package_version.sh")"
+ipa_path="${build_root}/NetTool-${package_version}.ipa"
 staging_path="$(mktemp -d "${TMPDIR:-/tmp}/nettool-ipa.XXXXXX")"
 
 cleanup() {

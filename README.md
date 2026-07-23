@@ -65,10 +65,19 @@ Linux 环境可以编辑和审查源码，但 iOS App 必须使用 Apple 工具�
 1. 运行 `NetToolCore` 测试；
 2. 使用 XcodeGen 生成工程；
 3. 使用 Xcode 26.5 构建未签名 App；
-4. 上传 `NetTool-unsigned.ipa` artifact。
+4. 根据最近的 Git tag 和提交生成 Arch VCS 风格版本；
+5. 上传带版本号的 IPA artifact。
 
 下载 artifact 并解压后，可将 IPA 导入 LiveContainer。若要直接安装，则需要由
 SideStore、AltStore 或其他签名工具重新签名。
+
+例如，tag `v0.0.1` 后第 3 个提交会生成：
+
+```text
+NetTool-0.0.1.r3.gabcdef0.ipa
+```
+
+构建要求仓库至少存在一个 Git tag，不会在缺少 tag 时生成猜测版本。
 
 在具备 Apple 工具链的 macOS 上，也可以直接运行：
 

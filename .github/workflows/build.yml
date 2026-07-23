@@ -19,7 +19,10 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Show Apple toolchain
         run: |
@@ -34,13 +37,18 @@ jobs:
       - name: Test core package
         run: swift test --package-path Packages/NetToolCore
 
+      - name: Resolve package version
+        id: package
+        run: echo "version=$(bash scripts/package_version.sh)" >> "$GITHUB_OUTPUT"
+
       - name: Build unsigned IPA
         run: bash scripts/build_unsigned_ipa.sh
 
       - name: Upload unsigned IPA
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: NetTool-unsigned-${{ github.run_number }}
-          path: build/NetTool-unsigned.ipa
+          name: NetTool-${{ steps.package.outputs.version }}
+          path: build/NetTool-${{ steps.package.outputs.version }}.ipa
           if-no-files-found: error
           retention-days: 14
+          archive: false
