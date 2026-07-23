@@ -1,7 +1,7 @@
 name: NetTool
 
 options:
-  minimumXcodeGenVersion: 2.46.0
+  minimumXcodeGenVersion: 2.45.4
   deploymentTarget:
     iOS: "26.0"
   createIntermediateGroups: true

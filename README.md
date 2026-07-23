@@ -35,7 +35,7 @@ project.yml             XcodeGen 工程描述
 
 - macOS 26；
 - Xcode 26.5；
-- XcodeGen 2.46.0 或更高版本。
+- XcodeGen 2.45.4 或更高版本。
 
 ```bash
 brew install xcodegen
