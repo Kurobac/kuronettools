@@ -205,11 +205,11 @@ struct DNSMessageCodecTests {
             0x00
         ]
         append(typeCode, to: &bytes)
-        append(1, to: &bytes)
+        append(UInt16(1), to: &bytes)
 
         bytes.append(contentsOf: [0xc0, 0x0c])
         append(typeCode, to: &bytes)
-        append(1, to: &bytes)
+        append(UInt16(1), to: &bytes)
         append(timeToLive, to: &bytes)
         append(UInt16(recordData.count), to: &bytes)
         bytes.append(contentsOf: recordData)
