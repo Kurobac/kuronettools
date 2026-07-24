@@ -66,25 +66,15 @@ struct PingView: View {
             .disabled(model.isRunning)
 
             Section {
-                if model.isRunning {
-                    Button(role: .destructive) {
-                        model.stop(logStore: logStore)
-                    } label: {
-                        actionLabel(
-                            model.isStopping ? "正在停止…" : "停止",
-                            systemImage: "stop.fill"
-                        )
-                    }
-                    .disabled(model.isStopping)
-                } else {
-                    Button {
-                        model.start(logStore: logStore)
-                    } label: {
-                        actionLabel(
-                            "开始 Ping",
-                            systemImage: "play.fill"
-                        )
-                    }
+                RunActionButton(
+                    isRunning: model.isRunning,
+                    isStopping: model.isStopping,
+                    startTitle: "开始 Ping",
+                    startSystemImage: "play.fill"
+                ) {
+                    model.start(logStore: logStore)
+                } stopAction: {
+                    model.stop(logStore: logStore)
                 }
             }
 
@@ -148,15 +138,6 @@ struct PingView: View {
 
     private func seconds(_ value: Double) -> String {
         String(format: "%.1f 秒", value)
-    }
-
-    private func actionLabel(
-        _ title: String,
-        systemImage: String
-    ) -> some View {
-        Label(title, systemImage: systemImage)
-            .font(.body.weight(.semibold))
-            .frame(maxWidth: .infinity)
     }
 }
 

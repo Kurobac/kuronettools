@@ -47,25 +47,15 @@ struct TCPView: View {
             .disabled(model.isRunning)
 
             Section {
-                if model.isRunning {
-                    Button(role: .destructive) {
-                        model.stop(logStore: logStore)
-                    } label: {
-                        actionLabel(
-                            model.isStopping ? "正在停止…" : "停止",
-                            systemImage: "stop.fill"
-                        )
-                    }
-                    .disabled(model.isStopping)
-                } else {
-                    Button {
-                        model.start(logStore: logStore)
-                    } label: {
-                        actionLabel(
-                            "开始连接",
-                            systemImage: "cable.connector"
-                        )
-                    }
+                RunActionButton(
+                    isRunning: model.isRunning,
+                    isStopping: model.isStopping,
+                    startTitle: "开始连接",
+                    startSystemImage: "cable.connector"
+                ) {
+                    model.start(logStore: logStore)
+                } stopAction: {
+                    model.stop(logStore: logStore)
                 }
             }
 
@@ -151,14 +141,5 @@ struct TCPView: View {
 
     private func milliseconds(_ value: Double) -> String {
         String(format: "%.3f ms", value)
-    }
-
-    private func actionLabel(
-        _ title: String,
-        systemImage: String
-    ) -> some View {
-        Label(title, systemImage: systemImage)
-            .font(.body.weight(.semibold))
-            .frame(maxWidth: .infinity)
     }
 }

@@ -5,6 +5,7 @@ import SwiftUI
 struct TLSView: View {
     @Environment(AppLogStore.self) private var logStore
     @State private var model = TLSViewModel()
+    @State private var alpnPreset = TLSALPNPreset.web
 
     var body: some View {
         @Bindable var model = model
@@ -41,13 +42,27 @@ struct TLSView: View {
             .disabled(model.isRunning)
 
             Section("参数") {
-                TextField(
-                    "ALPN（逗号分隔）",
-                    text: $model.applicationProtocols
-                )
-                .keyboardType(.asciiCapable)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
+                Picker("ALPN", selection: $alpnPreset) {
+                    ForEach(TLSALPNPreset.allCases) { preset in
+                        Text(preset.title)
+                            .tag(preset)
+                    }
+                }
+                .onChange(of: alpnPreset) { _, preset in
+                    if let protocols = preset.protocolString {
+                        model.applicationProtocols = protocols
+                    }
+                }
+
+                if alpnPreset == .custom {
+                    TextField(
+                        "ALPN（逗号分隔）",
+                        text: $model.applicationProtocols
+                    )
+                    .keyboardType(.asciiCapable)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                }
 
                 Stepper(
                     value: $model.timeoutSeconds,
@@ -68,25 +83,15 @@ struct TLSView: View {
             .disabled(model.isRunning)
 
             Section {
-                if model.isRunning {
-                    Button(role: .destructive) {
-                        model.stop(logStore: logStore)
-                    } label: {
-                        actionLabel(
-                            model.isStopping ? "正在停止…" : "停止",
-                            systemImage: "stop.fill"
-                        )
-                    }
-                    .disabled(model.isStopping)
-                } else {
-                    Button {
-                        model.start(logStore: logStore)
-                    } label: {
-                        actionLabel(
-                            "开始检查",
-                            systemImage: "checkmark.shield"
-                        )
-                    }
+                RunActionButton(
+                    isRunning: model.isRunning,
+                    isStopping: model.isStopping,
+                    startTitle: "开始检查",
+                    startSystemImage: "checkmark.shield"
+                ) {
+                    model.start(logStore: logStore)
+                } stopAction: {
+                    model.stop(logStore: logStore)
                 }
             }
 
@@ -148,14 +153,49 @@ struct TLSView: View {
     private func seconds(_ value: Double) -> String {
         String(format: "%.1f 秒", value)
     }
+}
 
-    private func actionLabel(
-        _ title: String,
-        systemImage: String
-    ) -> some View {
-        Label(title, systemImage: systemImage)
-            .font(.body.weight(.semibold))
-            .frame(maxWidth: .infinity)
+private enum TLSALPNPreset:
+    String,
+    CaseIterable,
+    Identifiable
+{
+    case web
+    case http2
+    case http1
+    case none
+    case custom
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .web:
+            "Web（h2, http/1.1）"
+        case .http2:
+            "仅 HTTP/2（h2）"
+        case .http1:
+            "仅 HTTP/1.1"
+        case .none:
+            "不发送"
+        case .custom:
+            "自定义"
+        }
+    }
+
+    var protocolString: String? {
+        switch self {
+        case .web:
+            "h2,http/1.1"
+        case .http2:
+            "h2"
+        case .http1:
+            "http/1.1"
+        case .none:
+            ""
+        case .custom:
+            nil
+        }
     }
 }
 
@@ -215,7 +255,13 @@ private struct TLSResultView: View {
 
         Section("证书链") {
             ForEach(result.certificates) { certificate in
-                TLSCertificateDisclosure(certificate: certificate)
+                NavigationLink {
+                    TLSCertificateDetailView(
+                        certificate: certificate
+                    )
+                } label: {
+                    TLSCertificateRow(certificate: certificate)
+                }
             }
         }
     }
@@ -231,14 +277,52 @@ private struct TLSResultView: View {
 }
 
 @MainActor
-private struct TLSCertificateDisclosure: View {
+private struct TLSCertificateRow: View {
     let certificate: TLSCertificateInfo
 
     var body: some View {
-        DisclosureGroup {
-            VStack(alignment: .leading, spacing: 12) {
+        let validity = TLSCertificateValidity(certificate)
+
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text("证书 \(certificate.index + 1)")
+                    .font(.body.weight(.medium))
+
+                Spacer()
+
+                Text(validity.shortTitle)
+                    .font(.caption)
+                    .foregroundStyle(validity.color)
+            }
+
+            Text(certificate.subject)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+@MainActor
+private struct TLSCertificateDetailView: View {
+    let certificate: TLSCertificateInfo
+
+    var body: some View {
+        let validity = TLSCertificateValidity(certificate)
+
+        Form {
+            Section("摘要") {
                 detail("Subject", certificate.subject)
                 detail("Issuer", certificate.issuer)
+
+                LabeledContent("有效性") {
+                    Text(validity.detailTitle)
+                        .foregroundStyle(validity.color)
+                }
+            }
+
+            Section("有效期") {
                 detail(
                     "生效时间",
                     certificate.notValidBefore.formatted(
@@ -253,20 +337,16 @@ private struct TLSCertificateDisclosure: View {
                         time: .standard
                     )
                 )
-                detail("有效性", validityDescription)
-                detail("序列号", certificate.serialNumber)
-                detail("公钥", certificate.publicKey)
-                detail(
-                    "签名算法",
-                    certificate.signatureAlgorithm
-                )
-                detail(
-                    "SHA-256",
-                    certificate.sha256Fingerprint
-                )
+            }
 
-                if !certificate.subjectAlternativeNames.isEmpty {
-                    VStack(alignment: .leading, spacing: 4) {
+            Section("标识") {
+                detail("序列号", certificate.serialNumber)
+
+                if certificate.subjectAlternativeNames.isEmpty {
+                    Text("没有 Subject Alternative Name")
+                        .foregroundStyle(.secondary)
+                } else {
+                    VStack(alignment: .leading, spacing: 6) {
                         Text("Subject Alternative Name")
                             .foregroundStyle(.secondary)
                         ForEach(
@@ -280,36 +360,21 @@ private struct TLSCertificateDisclosure: View {
                     }
                 }
             }
-            .padding(.top, 8)
-        } label: {
-            VStack(alignment: .leading, spacing: 3) {
-                Text("证书 \(certificate.index + 1)")
-                    .font(.body.weight(.medium))
-                Text(certificate.subject)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
+
+            Section("密钥与签名") {
+                detail("公钥", certificate.publicKey)
+                detail(
+                    "签名算法",
+                    certificate.signatureAlgorithm
+                )
+                detail(
+                    "SHA-256",
+                    certificate.sha256Fingerprint
+                )
             }
         }
-    }
-
-    private var validityDescription: String {
-        let now = Date()
-        if now < certificate.notValidBefore {
-            return "尚未生效"
-        }
-        if now > certificate.notValidAfter {
-            return "已过期"
-        }
-
-        let remainingDays = max(
-            0,
-            Int(
-                certificate.notValidAfter.timeIntervalSince(now)
-                    / 86_400
-            )
-        )
-        return "有效（剩余 \(remainingDays) 天）"
+        .navigationTitle("证书 \(certificate.index + 1)")
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     private func detail(
@@ -322,6 +387,65 @@ private struct TLSCertificateDisclosure: View {
             Text(value)
                 .font(.caption.monospaced())
                 .textSelection(.enabled)
+        }
+    }
+}
+
+private enum TLSCertificateValidity {
+    case valid(remainingDays: Int)
+    case notYetValid
+    case expired
+
+    init(_ certificate: TLSCertificateInfo) {
+        let now = Date()
+        if now < certificate.notValidBefore {
+            self = .notYetValid
+        } else if now > certificate.notValidAfter {
+            self = .expired
+        } else {
+            self = .valid(
+                remainingDays: max(
+                    0,
+                    Int(
+                        certificate.notValidAfter
+                            .timeIntervalSince(now)
+                            / 86_400
+                    )
+                )
+            )
+        }
+    }
+
+    var shortTitle: String {
+        switch self {
+        case .valid:
+            "有效"
+        case .notYetValid:
+            "尚未生效"
+        case .expired:
+            "已过期"
+        }
+    }
+
+    var detailTitle: String {
+        switch self {
+        case .valid(let remainingDays):
+            "有效（剩余 \(remainingDays) 天）"
+        case .notYetValid:
+            "尚未生效"
+        case .expired:
+            "已过期"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .valid:
+            .green
+        case .notYetValid:
+            .orange
+        case .expired:
+            .red
         }
     }
 }
