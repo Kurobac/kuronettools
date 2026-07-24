@@ -5,7 +5,7 @@ import SwiftUI
 @MainActor
 struct EditableTargetComboBox: View {
     let prompt: String
-    let transport: DNSTransport
+    let suggestions: [String]
     @Binding var value: String
 
     init(
@@ -14,7 +14,19 @@ struct EditableTargetComboBox: View {
         value: Binding<String>
     ) {
         self.prompt = prompt
-        self.transport = transport
+        suggestions = PublicDNSPreset.all.compactMap {
+            $0.endpoint(for: transport)
+        }
+        _value = value
+    }
+
+    init(
+        prompt: String,
+        suggestions: [String],
+        value: Binding<String>
+    ) {
+        self.prompt = prompt
+        self.suggestions = suggestions
         _value = value
     }
 
@@ -42,14 +54,14 @@ struct EditableTargetComboBox: View {
                     Image(systemName: "chevron.up.chevron.down")
                         .foregroundStyle(.secondary)
                         .frame(
-                            width: 48,
-                            height: 44,
-                            alignment: .trailing
+                            width: 72,
+                            height: 44
                         )
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("选择常用目标")
+                .offset(x: 30)
             }
     }
 
@@ -61,9 +73,7 @@ struct EditableTargetComboBox: View {
 
     private var availableEndpoints: [String] {
         var seen = Set<String>()
-        return PublicDNSPreset.all.compactMap {
-            $0.endpoint(for: transport)
-        }.filter {
+        return suggestions.filter {
             seen.insert($0).inserted
         }
     }

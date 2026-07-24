@@ -13,6 +13,7 @@ struct PingView: View {
             Section("目标") {
                 EditableTargetComboBox(
                     prompt: "主机名或 IP 地址",
+                    suggestions: Self.commonTargets,
                     value: $model.host
                 )
 
@@ -133,6 +134,17 @@ struct PingView: View {
             }
         }
     }
+
+    private static let commonTargets = [
+        "1.1.1.1",
+        "8.8.8.8",
+        "223.5.5.5",
+        "119.29.29.29",
+        "one.one.one.one",
+        "dns.google",
+        "www.baidu.com",
+        "www.apple.com"
+    ]
 
     private func seconds(_ value: Double) -> String {
         String(format: "%.1f 秒", value)
