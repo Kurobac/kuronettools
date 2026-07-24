@@ -73,6 +73,9 @@ final class PingViewModel {
                 return
             }
             defer {
+                if self.isStopping {
+                    self.statusMessage = "已停止"
+                }
                 self.isRunning = false
                 self.isStopping = false
                 self.runTask = nil
