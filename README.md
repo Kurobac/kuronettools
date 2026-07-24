@@ -5,7 +5,7 @@ NetTool 是一个面向 iPhone 和 iPad 的个人网络诊断工具箱。项目�
 
 ## 当前状态
 
-Step 2 已包含：
+Step 3A 已包含：
 
 - iOS 26 SwiftUI 应用骨架；
 - 可选择 IPv4、IPv6 或自动解析的 Ping；
@@ -14,16 +14,19 @@ Step 2 已包含：
 - 运行取消、文本结果分享与运行日志；
 - UDP、TCP、DoT 和 DoH DNS 查询；
 - 普通 DNS 可自定义服务器与端口，DoT 可自定义主机与端口；
-- DoH 使用 RFC 8484 POST，可自定义 HTTPS URL；
-- 常用大陆与国际公共 DNS 预置，并按传输方式显示可用端点；
+- DoH 使用 RFC 8484 POST，可自定义 HTTPS URL 与端口；
+- 常用公共 DNS 预置，并按传输方式显示可用端点；
 - A、AAAA、CNAME、NS、MX、TXT、SOA、SRV、CAA 和 PTR；
 - DNS Header、Flags、RCODE、Answer、Authority、Additional 与原始报文；
-- TCP、TLS、HTTP、Traceroute、端口扫描和网络信息入口；
+- TCP Connect，可选择自动、IPv4 或 IPv6；
+- TCP 目标、端口和超时设置，以及常用目标与端口预置；
+- TCP 实际远端地址、连接耗时与失败原因分类；
+- TLS、HTTP、Traceroute、端口扫描和网络信息入口；
 - 应用版本与运行环境页面；
 - 独立的 `NetToolCore` Swift Package 与基础测试；
 - GitHub Actions 无签名 IPA 构建。
 
-除 Ping 和 DNS 外的网络工具目前显示“规划中”，会在后续步骤逐项实现。
+除 Ping、DNS 和 TCP 连接外的网络工具目前显示“规划中”，会在后续步骤逐项实现。
 
 UDP 查询直接向指定服务器发送数据报；TCP 与 DoT 使用两字节长度前缀承载 DNS
 报文；DoH 仅接受 HTTPS 与 `application/dns-message`。DoT 使用系统信任链严格
@@ -107,7 +110,7 @@ bash scripts/build_unsigned_ipa.sh
 
 1. Ping（已完成）
 2. DNS（UDP、TCP、DoT、DoH 已完成）
-3. TCP、TLS 与 HTTP
+3. TCP（已完成）、TLS 与 HTTP
 4. Traceroute 与 TCP 端口扫描
 5. 接口、地址、路由和 Resolver 信息
 

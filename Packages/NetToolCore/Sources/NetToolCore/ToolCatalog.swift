@@ -72,7 +72,8 @@ public enum ToolCatalog {
             title: "TCP 连接",
             summary: "测试端口与连接耗时",
             systemImage: "cable.connector",
-            category: .diagnostics
+            category: .diagnostics,
+            availability: .available
         ),
         ToolDescriptor(
             id: "port-scan",

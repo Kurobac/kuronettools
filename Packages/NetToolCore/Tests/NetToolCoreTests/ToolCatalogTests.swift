@@ -32,4 +32,13 @@ struct ToolCatalogTests {
 
         #expect(dns.availability == .available)
     }
+
+    @Test("TCP connect is available in Step 3A")
+    func tcpIsAvailable() throws {
+        let tcp = try #require(
+            ToolCatalog.all.first { $0.id == "tcp" }
+        )
+
+        #expect(tcp.availability == .available)
+    }
 }
