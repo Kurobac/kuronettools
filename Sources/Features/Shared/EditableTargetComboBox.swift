@@ -19,11 +19,15 @@ struct EditableTargetComboBox: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 0) {
             TextField(prompt, text: $value)
                 .keyboardType(.URL)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
+                .padding(.trailing, 12)
+
+            Divider()
+                .frame(height: 24)
 
             Menu {
                 ForEach(availableEndpoints, id: \.self) { endpoint in
@@ -41,6 +45,7 @@ struct EditableTargetComboBox: View {
             } label: {
                 Image(systemName: "chevron.up.chevron.down")
                     .foregroundStyle(.secondary)
+                    .frame(width: 48, height: 44)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
