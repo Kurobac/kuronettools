@@ -61,10 +61,6 @@ struct DNSView: View {
                         format: .number
                     )
                     .keyboardType(.numberPad)
-
-                    Text("使用系统信任链严格校验证书。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                 case .https:
                     EditableTargetComboBox(
                         prompt: "DoH URL",
@@ -72,12 +68,12 @@ struct DNSView: View {
                         value: $model.httpsURL
                     )
 
-                    Text(
-                        "使用 RFC 8484 POST；仅接受 HTTPS "
-                            + "与 application/dns-message。"
+                    TextField(
+                        "端口",
+                        value: $model.httpsPort,
+                        format: .number
                     )
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .keyboardType(.numberPad)
                 }
 
                 Stepper(

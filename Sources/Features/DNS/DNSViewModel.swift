@@ -13,6 +13,7 @@ final class DNSViewModel {
     var tlsServer = "1.1.1.1"
     var tlsPort = 853
     var httpsURL = "https://cloudflare-dns.com/dns-query"
+    var httpsPort = 443
     var timeoutSeconds = 3.0
     var recursionDesired = true
 
@@ -46,7 +47,7 @@ final class DNSViewModel {
         case .tls:
             tlsPort
         case .https:
-            transport.defaultPort
+            httpsPort
         }
     }
 

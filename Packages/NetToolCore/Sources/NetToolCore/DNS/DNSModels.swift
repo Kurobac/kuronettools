@@ -119,7 +119,7 @@ public struct DNSQueryConfiguration: Equatable, Sendable {
         transport: DNSTransport = .udp,
         server: String = "1.1.1.1",
         tlsServerName: String? = nil,
-        port: Int = 53,
+        port: Int? = nil,
         timeoutSeconds: Double = 3,
         recursionDesired: Bool = true
     ) {
@@ -128,7 +128,7 @@ public struct DNSQueryConfiguration: Equatable, Sendable {
         self.transport = transport
         self.server = server
         self.tlsServerName = tlsServerName
-        self.port = port
+        self.port = port ?? transport.defaultPort
         self.timeoutSeconds = timeoutSeconds
         self.recursionDesired = recursionDesired
     }
@@ -146,6 +146,7 @@ public struct DNSQueryConfiguration: Equatable, Sendable {
         let validatedTLSServerName = trimmedTLSServerName.flatMap {
             $0.isEmpty ? nil : $0
         }
+        var validatedServer = trimmedServer
 
         guard !trimmedName.isEmpty else {
             throw DNSConfigurationError.emptyName
@@ -153,18 +154,21 @@ public struct DNSQueryConfiguration: Equatable, Sendable {
         guard !trimmedServer.isEmpty else {
             throw DNSConfigurationError.emptyServer
         }
-        var validatedPort = port
+        guard (1 ... 65_535).contains(port) else {
+            throw DNSConfigurationError.invalidPort
+        }
         if transport.usesHTTPSURL {
-            guard let url = URL(string: trimmedServer),
-                  url.scheme?.lowercased() == "https",
-                  let host = url.host,
+            guard var components = URLComponents(string: trimmedServer),
+                  components.scheme?.lowercased() == "https",
+                  let host = components.host,
                   !host.isEmpty else {
                 throw DNSConfigurationError.invalidHTTPSURL
             }
-            validatedPort = url.port ?? transport.defaultPort
-        }
-        guard (1 ... 65_535).contains(validatedPort) else {
-            throw DNSConfigurationError.invalidPort
+            components.port = port
+            guard let url = components.url else {
+                throw DNSConfigurationError.invalidHTTPSURL
+            }
+            validatedServer = url.absoluteString
         }
         guard timeoutSeconds.isFinite,
               (0.1 ... 30).contains(timeoutSeconds) else {
@@ -175,11 +179,11 @@ public struct DNSQueryConfiguration: Equatable, Sendable {
             name: trimmedName,
             type: type,
             transport: transport,
-            server: trimmedServer,
+            server: validatedServer,
             tlsServerName: transport == .tls
                 ? validatedTLSServerName
                 : nil,
-            port: validatedPort,
+            port: port,
             timeoutSeconds: timeoutSeconds,
             recursionDesired: recursionDesired
         )

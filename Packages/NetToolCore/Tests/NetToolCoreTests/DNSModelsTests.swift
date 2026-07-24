@@ -16,16 +16,34 @@ struct DNSModelsTests {
         #expect(configuration.port == 53)
     }
 
-    @Test("DoH configuration requires an HTTPS URL")
+    @Test("DoH configuration overrides the URL port")
     func validatesHTTPSConfiguration() throws {
         let configuration = try DNSQueryConfiguration(
             name: "example.com",
             transport: .https,
-            server: " https://dns.example/dns-query ",
-            port: 0
+            server: " https://dns.example:8443/dns-query ",
+            port: 4443
         ).validated()
 
-        #expect(configuration.server == "https://dns.example/dns-query")
+        #expect(
+            configuration.server
+                == "https://dns.example:4443/dns-query"
+        )
+        #expect(configuration.port == 4443)
+    }
+
+    @Test("DoH configuration defaults to port 443")
+    func defaultsHTTPSPort() throws {
+        let configuration = try DNSQueryConfiguration(
+            name: "example.com",
+            transport: .https,
+            server: "https://dns.example/dns-query"
+        ).validated()
+
+        #expect(
+            configuration.server
+                == "https://dns.example:443/dns-query"
+        )
         #expect(configuration.port == 443)
     }
 
@@ -63,6 +81,12 @@ struct DNSModelsTests {
             DNSQueryConfiguration(
                 name: "example.com",
                 timeoutSeconds: 31
+            ),
+            DNSQueryConfiguration(
+                name: "example.com",
+                transport: .https,
+                server: "https://dns.example/dns-query",
+                port: 0
             ),
             DNSQueryConfiguration(
                 name: "example.com",
