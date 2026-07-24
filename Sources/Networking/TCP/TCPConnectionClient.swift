@@ -15,7 +15,7 @@ struct TCPConnectionClient: Sendable {
             throw TCPConnectionClientError.invalidPort
         }
 
-        let operation = TCPConnectionOperation(
+        let operation = try TCPConnectionOperation(
             configuration: configuration,
             port: port
         )
@@ -36,6 +36,7 @@ enum TCPConnectionClientError: Error, Equatable, LocalizedError {
     case dnsFailure(message: String)
     case connectionRefused
     case unreachable
+    case missingIPOptions
     case missingRemoteEndpoint
     case network(message: String)
 
@@ -51,6 +52,8 @@ enum TCPConnectionClientError: Error, Equatable, LocalizedError {
             "目标主机拒绝了 TCP 连接。"
         case .unreachable:
             "目标主机或网络不可达。"
+        case .missingIPOptions:
+            "系统没有提供 TCP 连接所需的 IP 协议选项。"
         case .missingRemoteEndpoint:
             "连接已建立，但系统没有提供实际远端地址。"
         case .network(let message):
@@ -77,7 +80,7 @@ private final class TCPConnectionOperation: @unchecked Sendable {
     init(
         configuration: TCPConnectionConfiguration,
         port: NWEndpoint.Port
-    ) {
+    ) throws {
         self.configuration = configuration
 
         let parameters = NWParameters.tcp
@@ -85,11 +88,14 @@ private final class TCPConnectionOperation: @unchecked Sendable {
         case .automatic:
             break
         case .ipv4, .ipv6:
-            let ipOptions = NWProtocolIP.Options()
+            guard let ipOptions =
+                    parameters.defaultProtocolStack.internetProtocol
+                        as? NWProtocolIP.Options else {
+                throw TCPConnectionClientError.missingIPOptions
+            }
             ipOptions.version = configuration.addressFamily == .ipv4
                 ? .v4
                 : .v6
-            parameters.defaultProtocolStack.internetProtocol = ipOptions
         }
 
         self.connection = NWConnection(
