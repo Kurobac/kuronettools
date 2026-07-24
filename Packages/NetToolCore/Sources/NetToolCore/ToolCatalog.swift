@@ -103,7 +103,8 @@ public enum ToolCatalog {
             title: "HTTP 信息",
             summary: "状态、响应头与请求耗时",
             systemImage: "globe",
-            category: .web
+            category: .web,
+            availability: .available
         ),
         ToolDescriptor(
             id: "network-info",

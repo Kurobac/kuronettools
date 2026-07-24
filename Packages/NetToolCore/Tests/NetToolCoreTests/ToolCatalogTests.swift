@@ -50,4 +50,13 @@ struct ToolCatalogTests {
 
         #expect(tls.availability == .available)
     }
+
+    @Test("HTTP inspector is available in Step 3C")
+    func httpIsAvailable() throws {
+        let http = try #require(
+            ToolCatalog.all.first { $0.id == "http" }
+        )
+
+        #expect(http.availability == .available)
+    }
 }

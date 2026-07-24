@@ -5,7 +5,7 @@ NetTool 是一个面向 iPhone 和 iPad 的个人网络诊断工具箱。项目�
 
 ## 当前状态
 
-Step 3B 已包含：
+Step 3C 已包含：
 
 - iOS 26 SwiftUI 应用骨架；
 - 可选择 IPv4、IPv6 或自动解析的 Ping；
@@ -26,13 +26,16 @@ Step 3B 已包含：
 - TLS 版本、密码套件、ALPN、握手耗时、信任状态和实际远端地址；
 - 系统构建的完整证书链，以及 Subject、Issuer、有效期、序列号、SAN、公钥、
   签名算法和 SHA-256 指纹；
-- HTTP、Traceroute、端口扫描和网络信息入口；
+- HTTP HEAD 信息，可设置 URL、超时与是否跟随重定向；
+- HTTP 状态、协议、完整响应头、重定向链与 curl 风格文本导出；
+- HTTP DNS、TCP、TLS、首字节和总耗时，以及本地/远端地址和连接属性；
+- Traceroute、端口扫描和网络信息入口；
 - 应用版本与运行环境页面；
 - 独立的 `NetToolCore` Swift Package 与基础测试；
 - GitHub Actions 无签名 IPA 构建。
 
-除 Ping、DNS、TCP 连接和 TLS 检查外的网络工具目前显示“规划中”，会在后续步骤
-逐项实现。
+除 Ping、DNS、TCP 连接、TLS 检查和 HTTP 信息外的网络工具目前显示“规划中”，
+会在后续步骤逐项实现。
 
 UDP 查询直接向指定服务器发送数据报；TCP 与 DoT 使用两字节长度前缀承载 DNS
 报文；DoH 仅接受 HTTPS 与 `application/dns-message`。DoT 使用系统信任链严格
@@ -40,6 +43,10 @@ UDP 查询直接向指定服务器发送数据报；TCP 与 DoT 使用两字节�
 
 域名输入目前要求 ASCII。IDNA、EDNS、自定义数字 QTYPE 和 DNSSEC 记录解析暂缓
 实现。
+
+HTTP 信息使用 HEAD 请求且不会在服务器拒绝 HEAD 时自动退回 GET；请求关闭缓存，
+因此不会下载响应正文。系统网络栈会规范化响应头的名称、顺序和重复字段，所以
+“curl -I”区块用于可读与导出，不表示线上字节完全原样。
 
 ## 工程布局
 
@@ -116,7 +123,7 @@ bash scripts/build_unsigned_ipa.sh
 
 1. Ping（已完成）
 2. DNS（UDP、TCP、DoT、DoH 已完成）
-3. TCP 与 TLS（已完成）、HTTP
+3. TCP、TLS 与 HTTP（已完成）
 4. Traceroute 与 TCP 端口扫描
 5. 接口、地址、路由和 Resolver 信息
 

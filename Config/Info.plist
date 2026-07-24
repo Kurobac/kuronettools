@@ -24,6 +24,11 @@
 	<true/>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>用于诊断局域网设备的连通性、端口和网络配置。</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>
