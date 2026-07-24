@@ -36,18 +36,10 @@ struct DNSView: View {
 
                 switch model.transport {
                 case .udp, .tcp:
-                    TextField(
-                        "DNS 服务器",
-                        text: $model.standardServer
-                    )
-                    .keyboardType(.URL)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-
-                    PublicDNSPresetMenu(
-                        title: "常用服务器",
+                    EditableTargetComboBox(
+                        prompt: "DNS 服务器",
                         transport: model.transport,
-                        address: $model.standardServer
+                        value: $model.standardServer
                     )
 
                     TextField(
@@ -57,18 +49,10 @@ struct DNSView: View {
                     )
                     .keyboardType(.numberPad)
                 case .tls:
-                    TextField(
-                        "DoT 服务器",
-                        text: $model.tlsServer
-                    )
-                    .keyboardType(.URL)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-
-                    PublicDNSPresetMenu(
-                        title: "常用服务器",
+                    EditableTargetComboBox(
+                        prompt: "DoT 服务器",
                         transport: .tls,
-                        address: $model.tlsServer
+                        value: $model.tlsServer
                     )
 
                     TextField(
@@ -82,18 +66,10 @@ struct DNSView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 case .https:
-                    TextField(
-                        "DoH URL",
-                        text: $model.httpsURL
-                    )
-                    .keyboardType(.URL)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-
-                    PublicDNSPresetMenu(
-                        title: "常用服务器",
+                    EditableTargetComboBox(
+                        prompt: "DoH URL",
                         transport: .https,
-                        address: $model.httpsURL
+                        value: $model.httpsURL
                     )
 
                     Text(
@@ -154,13 +130,14 @@ struct DNSView: View {
             }
 
             if let result = model.result {
-                DNSResponseOverview(result: result)
-
                 DNSRecordSection(
                     title: "Answer",
                     records: result.message.answers,
                     showsEmptyState: true
                 )
+
+                DNSResponseOverview(result: result)
+
                 DNSRecordSection(
                     title: "Authority",
                     records: result.message.authorities

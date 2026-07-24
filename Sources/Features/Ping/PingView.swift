@@ -11,14 +11,9 @@ struct PingView: View {
 
         Form {
             Section("目标") {
-                TextField("主机名或 IP 地址", text: $model.host)
-                    .keyboardType(.URL)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-
-                PublicDNSPresetMenu(
-                    title: "常用目标",
-                    address: $model.host
+                EditableTargetComboBox(
+                    prompt: "主机名或 IP 地址",
+                    value: $model.host
                 )
 
                 Picker("地址族", selection: $model.addressFamily) {

@@ -2,6 +2,7 @@ public struct PublicDNSPreset: Identifiable, Hashable, Sendable {
     public let name: String
     public let address: String
     public let tlsServer: String?
+    public let tlsServerName: String?
     public let httpsURL: String?
 
     public var id: String { address }
@@ -10,11 +11,13 @@ public struct PublicDNSPreset: Identifiable, Hashable, Sendable {
         name: String,
         address: String,
         tlsServer: String? = nil,
+        tlsServerName: String? = nil,
         httpsURL: String? = nil
     ) {
         self.name = name
         self.address = address
         self.tlsServer = tlsServer
+        self.tlsServerName = tlsServerName
         self.httpsURL = httpsURL
     }
 
@@ -50,7 +53,8 @@ public struct PublicDNSPreset: Identifiable, Hashable, Sendable {
         PublicDNSPreset(
             name: "Cloudflare",
             address: "1.1.1.1",
-            tlsServer: "one.one.one.one",
+            tlsServer: "1.1.1.1",
+            tlsServerName: "one.one.one.one",
             httpsURL: "https://cloudflare-dns.com/dns-query"
         ),
         PublicDNSPreset(

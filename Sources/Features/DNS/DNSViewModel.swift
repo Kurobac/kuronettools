@@ -10,7 +10,7 @@ final class DNSViewModel {
     var transport = DNSTransport.udp
     var standardServer = "1.1.1.1"
     var standardPort = 53
-    var tlsServer = "one.one.one.one"
+    var tlsServer = "1.1.1.1"
     var tlsPort = 853
     var httpsURL = "https://cloudflare-dns.com/dns-query"
     var timeoutSeconds = 3.0
@@ -50,6 +50,19 @@ final class DNSViewModel {
         }
     }
 
+    var activeTLSServerName: String? {
+        guard transport == .tls else {
+            return nil
+        }
+
+        let normalizedServer = tlsServer.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        return PublicDNSPreset.all.first {
+            $0.endpoint(for: .tls) == normalizedServer
+        }?.tlsServerName
+    }
+
     func start(logStore: AppLogStore) {
         guard !isRunning else {
             return
@@ -64,6 +77,7 @@ final class DNSViewModel {
                 type: recordType,
                 transport: transport,
                 server: activeServer,
+                tlsServerName: activeTLSServerName,
                 port: activePort,
                 timeoutSeconds: timeoutSeconds,
                 recursionDesired: recursionDesired

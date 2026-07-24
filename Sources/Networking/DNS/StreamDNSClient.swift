@@ -1,6 +1,7 @@
 import Foundation
 import NetToolCore
 import Network
+import Security
 
 struct StreamDNSClient: Sendable {
     let usesTLS: Bool
@@ -63,7 +64,22 @@ private final class StreamQueryOperation: @unchecked Sendable {
         self.framedQuery = framedQuery
         self.transport = usesTLS ? .tls : .tcp
 
-        let parameters: NWParameters = usesTLS ? .tls : .tcp
+        let parameters: NWParameters
+        if usesTLS {
+            let tlsOptions = NWProtocolTLS.Options()
+            if let tlsServerName = configuration.tlsServerName {
+                sec_protocol_options_set_tls_server_name(
+                    tlsOptions.securityProtocolOptions,
+                    tlsServerName
+                )
+            }
+            parameters = NWParameters(
+                tls: tlsOptions,
+                tcp: NWProtocolTCP.Options()
+            )
+        } else {
+            parameters = .tcp
+        }
 
         self.connection = NWConnection(
             host: NWEndpoint.Host(configuration.server),

@@ -34,6 +34,9 @@ struct PublicDNSPresetTests {
                 $0.address == "114.114.114.114"
             }
         )
+        let cloudflare = try #require(
+            PublicDNSPreset.all.first { $0.address == "1.1.1.1" }
+        )
 
         #expect(aliDNS.endpoint(for: .udp) == "223.5.5.5")
         #expect(aliDNS.endpoint(for: .tls) == "dns.alidns.com")
@@ -43,5 +46,7 @@ struct PublicDNSPresetTests {
         )
         #expect(dns114.endpoint(for: .tls) == nil)
         #expect(dns114.endpoint(for: .https) == nil)
+        #expect(cloudflare.endpoint(for: .tls) == "1.1.1.1")
+        #expect(cloudflare.tlsServerName == "one.one.one.one")
     }
 }

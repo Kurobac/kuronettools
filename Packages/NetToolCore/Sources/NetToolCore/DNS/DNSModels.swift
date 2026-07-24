@@ -108,6 +108,7 @@ public struct DNSQueryConfiguration: Equatable, Sendable {
     public let type: DNSRecordType
     public let transport: DNSTransport
     public let server: String
+    public let tlsServerName: String?
     public let port: Int
     public let timeoutSeconds: Double
     public let recursionDesired: Bool
@@ -117,6 +118,7 @@ public struct DNSQueryConfiguration: Equatable, Sendable {
         type: DNSRecordType = .a,
         transport: DNSTransport = .udp,
         server: String = "1.1.1.1",
+        tlsServerName: String? = nil,
         port: Int = 53,
         timeoutSeconds: Double = 3,
         recursionDesired: Bool = true
@@ -125,6 +127,7 @@ public struct DNSQueryConfiguration: Equatable, Sendable {
         self.type = type
         self.transport = transport
         self.server = server
+        self.tlsServerName = tlsServerName
         self.port = port
         self.timeoutSeconds = timeoutSeconds
         self.recursionDesired = recursionDesired
@@ -137,6 +140,12 @@ public struct DNSQueryConfiguration: Equatable, Sendable {
         let trimmedServer = server.trimmingCharacters(
             in: .whitespacesAndNewlines
         )
+        let trimmedTLSServerName = tlsServerName?.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        let validatedTLSServerName = trimmedTLSServerName.flatMap {
+            $0.isEmpty ? nil : $0
+        }
 
         guard !trimmedName.isEmpty else {
             throw DNSConfigurationError.emptyName
@@ -167,6 +176,9 @@ public struct DNSQueryConfiguration: Equatable, Sendable {
             type: type,
             transport: transport,
             server: trimmedServer,
+            tlsServerName: transport == .tls
+                ? validatedTLSServerName
+                : nil,
             port: validatedPort,
             timeoutSeconds: timeoutSeconds,
             recursionDesired: recursionDesired

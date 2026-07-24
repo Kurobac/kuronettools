@@ -29,6 +29,30 @@ struct DNSModelsTests {
         #expect(configuration.port == 443)
     }
 
+    @Test("DoT configuration trims its TLS server name")
+    func validatesTLSConfiguration() throws {
+        let configuration = try DNSQueryConfiguration(
+            name: "example.com",
+            transport: .tls,
+            server: " 1.1.1.1 ",
+            tlsServerName: " one.one.one.one ",
+            port: 853
+        ).validated()
+
+        #expect(configuration.server == "1.1.1.1")
+        #expect(configuration.tlsServerName == "one.one.one.one")
+    }
+
+    @Test("TLS server name is discarded for plaintext transports")
+    func discardsIrrelevantTLSServerName() throws {
+        let configuration = try DNSQueryConfiguration(
+            name: "example.com",
+            tlsServerName: "one.one.one.one"
+        ).validated()
+
+        #expect(configuration.tlsServerName == nil)
+    }
+
     @Test(
         "Invalid configuration is rejected",
         arguments: [
