@@ -5,6 +5,7 @@ import SwiftUI
 struct DNSView: View {
     @Environment(AppLogStore.self) private var logStore
     @State private var model = DNSViewModel()
+    @State private var scrollPosition: DNSScrollSection?
 
     var body: some View {
         @Bindable var model = model
@@ -24,6 +25,7 @@ struct DNSView: View {
                 }
             }
             .disabled(model.isRunning)
+            .id(DNSScrollSection.query)
 
             Section("传输") {
                 Picker("协议", selection: $model.transport) {
@@ -93,6 +95,7 @@ struct DNSView: View {
                 )
             }
             .disabled(model.isRunning)
+            .id(DNSScrollSection.transport)
 
             Section {
                 RunActionButton(
@@ -105,15 +108,16 @@ struct DNSView: View {
                 } stopAction: {
                     model.stop(logStore: logStore)
                 }
-            }
 
-            if let statusMessage = model.statusMessage {
-                Section("状态") {
-                    Text(statusMessage)
-                        .font(.callout.monospaced())
-                        .textSelection(.enabled)
+                if let statusMessage = model.statusMessage {
+                    LabeledContent("状态") {
+                        Text(statusMessage)
+                            .font(.callout)
+                            .textSelection(.enabled)
+                    }
                 }
             }
+            .id(DNSScrollSection.action)
 
             if let result = model.result {
                 DNSRecordSection(
@@ -121,17 +125,21 @@ struct DNSView: View {
                     records: result.message.answers,
                     showsEmptyState: true
                 )
+                .id(DNSScrollSection.answer)
 
                 DNSResponseOverview(result: result)
+                    .id(DNSScrollSection.response)
 
                 DNSRecordSection(
                     title: "Authority",
                     records: result.message.authorities
                 )
+                .id(DNSScrollSection.authority)
                 DNSRecordSection(
                     title: "Additional",
                     records: result.message.additionals
                 )
+                .id(DNSScrollSection.additional)
 
                 Section("原始报文") {
                     DisclosureGroup("查询报文") {
@@ -141,6 +149,7 @@ struct DNSView: View {
                         rawText(result.responseBytes)
                     }
                 }
+                .id(DNSScrollSection.rawMessage)
             }
 
             if let errorMessage = model.errorMessage {
@@ -149,8 +158,10 @@ struct DNSView: View {
                         .foregroundStyle(.red)
                         .textSelection(.enabled)
                 }
+                .id(DNSScrollSection.error)
             }
         }
+        .scrollPosition(id: $scrollPosition)
         .navigationTitle("DNS 查询")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -178,6 +189,18 @@ struct DNSView: View {
             .foregroundStyle(.secondary)
             .textSelection(.enabled)
     }
+}
+
+private enum DNSScrollSection: Hashable {
+    case query
+    case transport
+    case action
+    case answer
+    case response
+    case authority
+    case additional
+    case rawMessage
+    case error
 }
 
 private struct DNSResponseOverview: View {
@@ -266,7 +289,7 @@ private struct DNSRecordRow: View {
                     .font(.callout.weight(.semibold))
 
                 Text(record.name)
-                    .font(.caption.monospaced())
+                    .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
 
@@ -278,7 +301,7 @@ private struct DNSRecordRow: View {
             }
 
             Text(record.data.displayValue)
-                .font(.callout.monospaced())
+                .font(.callout)
                 .textSelection(.enabled)
         }
         .padding(.vertical, 2)

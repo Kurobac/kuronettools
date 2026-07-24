@@ -6,6 +6,7 @@ struct TLSView: View {
     @Environment(AppLogStore.self) private var logStore
     @State private var model = TLSViewModel()
     @State private var alpnPreset = TLSALPNPreset.web
+    @State private var scrollPosition: TLSScrollSection?
 
     var body: some View {
         @Bindable var model = model
@@ -40,6 +41,7 @@ struct TLSView: View {
                 .pickerStyle(.segmented)
             }
             .disabled(model.isRunning)
+            .id(TLSScrollSection.target)
 
             Section("参数") {
                 Picker("ALPN", selection: $alpnPreset) {
@@ -81,6 +83,7 @@ struct TLSView: View {
                 )
             }
             .disabled(model.isRunning)
+            .id(TLSScrollSection.parameters)
 
             Section {
                 RunActionButton(
@@ -93,18 +96,20 @@ struct TLSView: View {
                 } stopAction: {
                     model.stop(logStore: logStore)
                 }
-            }
 
-            if let statusMessage = model.statusMessage {
-                Section("状态") {
-                    Text(statusMessage)
-                        .font(.callout.monospaced())
-                        .textSelection(.enabled)
+                if let statusMessage = model.statusMessage {
+                    LabeledContent("状态") {
+                        Text(statusMessage)
+                            .font(.callout)
+                            .textSelection(.enabled)
+                    }
                 }
             }
+            .id(TLSScrollSection.action)
 
             if let result = model.result {
                 TLSResultView(result: result)
+                    .id(TLSScrollSection.result)
             }
 
             if let errorMessage = model.errorMessage {
@@ -113,8 +118,10 @@ struct TLSView: View {
                         .foregroundStyle(.red)
                         .textSelection(.enabled)
                 }
+                .id(TLSScrollSection.error)
             }
         }
+        .scrollPosition(id: $scrollPosition)
         .navigationTitle("TLS 检查")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -153,6 +160,14 @@ struct TLSView: View {
     private func seconds(_ value: Double) -> String {
         String(format: "%.1f 秒", value)
     }
+}
+
+private enum TLSScrollSection: Hashable {
+    case target
+    case parameters
+    case action
+    case result
+    case error
 }
 
 private enum TLSALPNPreset:
@@ -207,7 +222,7 @@ private struct TLSResultView: View {
         Section("连接") {
             LabeledContent("远端地址") {
                 Text(result.address)
-                    .font(.callout.monospaced())
+                    .font(.callout)
                     .textSelection(.enabled)
             }
             LabeledContent("远端端口", value: String(result.port))
@@ -236,7 +251,7 @@ private struct TLSResultView: View {
             )
             LabeledContent("Cipher Suite") {
                 Text(result.cipherSuite)
-                    .font(.caption.monospaced())
+                    .font(.callout)
                     .multilineTextAlignment(.trailing)
                     .textSelection(.enabled)
             }
@@ -313,8 +328,8 @@ private struct TLSCertificateDetailView: View {
 
         Form {
             Section("摘要") {
-                detail("Subject", certificate.subject)
-                detail("Issuer", certificate.issuer)
+                detail("主体", certificate.subject)
+                detail("签发者", certificate.issuer)
 
                 LabeledContent("有效性") {
                     Text(validity.detailTitle)
@@ -343,18 +358,18 @@ private struct TLSCertificateDetailView: View {
                 detail("序列号", certificate.serialNumber)
 
                 if certificate.subjectAlternativeNames.isEmpty {
-                    Text("没有 Subject Alternative Name")
+                    Text("没有主体备用名称（SAN）")
                         .foregroundStyle(.secondary)
                 } else {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Subject Alternative Name")
-                            .foregroundStyle(.secondary)
+                        Text("主体备用名称（SAN）")
                         ForEach(
                             certificate.subjectAlternativeNames,
                             id: \.self
                         ) { name in
                             Text(name)
-                                .font(.caption.monospaced())
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
                                 .textSelection(.enabled)
                         }
                     }
@@ -383,9 +398,9 @@ private struct TLSCertificateDetailView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
-                .foregroundStyle(.secondary)
             Text(value)
-                .font(.caption.monospaced())
+                .font(.callout)
+                .foregroundStyle(.secondary)
                 .textSelection(.enabled)
         }
     }
