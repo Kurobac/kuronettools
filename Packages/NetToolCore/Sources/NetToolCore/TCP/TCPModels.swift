@@ -1,13 +1,5 @@
 import Foundation
 
-#if canImport(Darwin)
-import Darwin
-#elseif canImport(Glibc)
-import Glibc
-#else
-#error("TCP IP address validation requires Darwin or Glibc.")
-#endif
-
 public enum TCPAddressFamily:
     String,
     CaseIterable,
@@ -67,7 +59,7 @@ public struct TCPConnectionConfiguration: Equatable, Sendable {
             throw TCPConfigurationError.invalidTimeout
         }
         if addressFamily != .automatic,
-           let literalFamily = Self.literalAddressFamily(
+           let literalFamily = IPAddressLiteral.family(
                of: trimmedHost
            ),
            literalFamily != addressFamily {
@@ -84,31 +76,6 @@ public struct TCPConnectionConfiguration: Equatable, Sendable {
             addressFamily: addressFamily,
             timeoutSeconds: timeoutSeconds
         )
-    }
-
-    private static func literalAddressFamily(
-        of address: String
-    ) -> TCPAddressFamily? {
-        var ipv4 = in_addr()
-        if address.withCString({
-            inet_pton(AF_INET, $0, &ipv4)
-        }) == 1 {
-            return .ipv4
-        }
-
-        let unscopedAddress = address.split(
-            separator: "%",
-            maxSplits: 1,
-            omittingEmptySubsequences: false
-        ).first.map(String.init) ?? address
-        var ipv6 = in6_addr()
-        if unscopedAddress.withCString({
-            inet_pton(AF_INET6, $0, &ipv6)
-        }) == 1 {
-            return .ipv6
-        }
-
-        return nil
     }
 }
 

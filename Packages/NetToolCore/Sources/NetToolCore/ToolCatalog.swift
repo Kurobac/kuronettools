@@ -95,7 +95,8 @@ public enum ToolCatalog {
             title: "TLS 检查",
             summary: "握手、协议与证书链",
             systemImage: "checkmark.shield",
-            category: .web
+            category: .web,
+            availability: .available
         ),
         ToolDescriptor(
             id: "http",

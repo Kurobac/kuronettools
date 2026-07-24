@@ -12,12 +12,12 @@ struct HomeView: View {
             List {
                 Section {
                     LabeledContent("开发阶段") {
-                        Text("Step 3A")
+                        Text("Step 3B")
                             .foregroundStyle(.secondary)
                     }
 
                     Text(
-                        "Ping、DNS 与 TCP 连接测试已可用；"
+                        "Ping、DNS、TCP 连接与 TLS 检查已可用；"
                             + "其他工具会在后续阶段逐项启用。"
                     )
                         .font(.callout)
@@ -73,6 +73,8 @@ struct HomeView: View {
             DNSView()
         case "tcp":
             TCPView()
+        case "tls":
+            TLSView()
         default:
             ToolPlaceholderView(tool: tool)
         }

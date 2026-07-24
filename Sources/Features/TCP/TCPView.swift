@@ -17,7 +17,10 @@ struct TCPView: View {
                     value: $model.host
                 )
 
-                TCPPortField(port: $model.port)
+                EditablePortField(
+                    port: $model.port,
+                    commonPorts: Self.commonPorts
+                )
 
                 Picker("地址族", selection: $model.addressFamily) {
                     ForEach(TCPAddressFamily.allCases) { family in
@@ -132,6 +135,16 @@ struct TCPView: View {
         "www.apple.com"
     ]
 
+    private static let commonPorts = [
+        22,
+        53,
+        80,
+        443,
+        853,
+        8080,
+        8443
+    ]
+
     private func seconds(_ value: Double) -> String {
         String(format: "%.1f 秒", value)
     }
@@ -148,53 +161,4 @@ struct TCPView: View {
             .font(.body.weight(.semibold))
             .frame(maxWidth: .infinity)
     }
-}
-
-@MainActor
-private struct TCPPortField: View {
-    @Binding var port: Int
-
-    var body: some View {
-        TextField(
-            "端口",
-            value: $port,
-            format: .number.grouping(.never)
-        )
-        .keyboardType(.numberPad)
-        .padding(.trailing, 28)
-        .overlay(alignment: .trailing) {
-            Menu {
-                ForEach(Self.commonPorts, id: \.self) { commonPort in
-                    Button {
-                        port = commonPort
-                    } label: {
-                        HStack {
-                            Text(String(commonPort))
-                            if commonPort == port {
-                                Image(systemName: "checkmark")
-                            }
-                        }
-                    }
-                }
-            } label: {
-                Image(systemName: "chevron.up.chevron.down")
-                    .foregroundStyle(.secondary)
-                    .frame(width: 72, height: 44)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("选择常用端口")
-            .offset(x: 30)
-        }
-    }
-
-    private static let commonPorts = [
-        22,
-        53,
-        80,
-        443,
-        853,
-        8080,
-        8443
-    ]
 }

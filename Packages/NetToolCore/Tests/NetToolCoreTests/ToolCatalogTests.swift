@@ -41,4 +41,13 @@ struct ToolCatalogTests {
 
         #expect(tcp.availability == .available)
     }
+
+    @Test("TLS inspector is available in Step 3B")
+    func tlsIsAvailable() throws {
+        let tls = try #require(
+            ToolCatalog.all.first { $0.id == "tls" }
+        )
+
+        #expect(tls.availability == .available)
+    }
 }

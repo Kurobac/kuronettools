@@ -10,8 +10,22 @@ let package = Package(
             targets: ["NetToolCore"]
         )
     ],
+    dependencies: [
+        .package(
+            url: "https://github.com/apple/swift-certificates.git",
+            exact: "1.19.3"
+        )
+    ],
     targets: [
-        .target(name: "NetToolCore"),
+        .target(
+            name: "NetToolCore",
+            dependencies: [
+                .product(
+                    name: "X509",
+                    package: "swift-certificates"
+                )
+            ]
+        ),
         .testTarget(
             name: "NetToolCoreTests",
             dependencies: ["NetToolCore"]
