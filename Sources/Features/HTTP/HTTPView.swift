@@ -166,7 +166,13 @@ private struct HTTPURLInputField: View {
                     }
                 }
             } label: {
-                menuLabel("常用目标")
+                Image(systemName: "chevron.up.chevron.down")
+                    .foregroundStyle(.secondary)
+                    .frame(
+                        width: 72,
+                        height: 44
+                    )
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .fixedSize(horizontal: true, vertical: false)
