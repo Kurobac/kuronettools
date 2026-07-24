@@ -164,6 +164,28 @@ private final class HTTPInspectionOperation:
 
     func urlSession(
         _ session: URLSession,
+        didReceive challenge: URLAuthenticationChallenge,
+        completionHandler: @escaping (
+            URLSession.AuthChallengeDisposition,
+            URLCredential?
+        ) -> Void
+    ) {
+        guard configuration.allowsUntrustedCertificates,
+              challenge.protectionSpace.authenticationMethod
+                == NSURLAuthenticationMethodServerTrust,
+              let trust = challenge.protectionSpace.serverTrust else {
+            completionHandler(.performDefaultHandling, nil)
+            return
+        }
+
+        completionHandler(
+            .useCredential,
+            URLCredential(trust: trust)
+        )
+    }
+
+    func urlSession(
+        _ session: URLSession,
         task: URLSessionTask,
         didFinishCollecting metrics: URLSessionTaskMetrics
     ) {
@@ -264,6 +286,8 @@ private final class HTTPInspectionOperation:
             originalURL: configuration.url,
             finalURL: finalURL.absoluteString,
             redirectCount: metrics.redirectCount,
+            allowsUntrustedCertificates:
+                configuration.allowsUntrustedCertificates,
             timeToFirstByteMilliseconds: milliseconds(
                 from: metrics.taskInterval.start,
                 to: finalResponseStart

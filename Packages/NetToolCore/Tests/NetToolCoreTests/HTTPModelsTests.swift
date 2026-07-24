@@ -7,35 +7,64 @@ struct HTTPModelsTests {
     @Test("Configuration normalizes a valid HTTP URL")
     func validatesConfiguration() throws {
         let configuration = try HTTPInspectionConfiguration(
-            url: " HTTPS://example.com:8443/path?q=1#fragment ",
+            scheme: .http,
+            target:
+                " HTTPS://example.com:8443/path?q=1#fragment ",
             followsRedirects: true,
-            timeoutSeconds: 15
+            timeoutSeconds: 15,
+            allowsUntrustedCertificates: true
         ).validated()
 
+        #expect(configuration.scheme == .https)
+        #expect(configuration.target == "example.com:8443/path?q=1")
         #expect(
             configuration.url
                 == "https://example.com:8443/path?q=1"
         )
         #expect(configuration.followsRedirects)
         #expect(configuration.timeoutSeconds == 15)
+        #expect(configuration.allowsUntrustedCertificates)
+    }
+
+    @Test("Selected scheme composes with a scheme-free target")
+    func composesSelectedScheme() throws {
+        let configuration = try HTTPInspectionConfiguration(
+            scheme: .http,
+            target:
+                "192.168.1.1:8080/status?next=https://example.com"
+        ).validated()
+
+        #expect(configuration.scheme == .http)
+        #expect(
+            configuration.target
+                == "192.168.1.1:8080/status"
+                    + "?next=https://example.com"
+        )
+        #expect(
+            configuration.url
+                == "http://192.168.1.1:8080/status"
+                    + "?next=https://example.com"
+        )
     }
 
     @Test(
         "Invalid configuration is rejected",
         arguments: [
-            HTTPInspectionConfiguration(url: ""),
-            HTTPInspectionConfiguration(url: "example.com"),
-            HTTPInspectionConfiguration(url: "ftp://example.com"),
-            HTTPInspectionConfiguration(url: "https:///path"),
+            HTTPInspectionConfiguration(target: ""),
+            HTTPInspectionConfiguration(target: "/path"),
             HTTPInspectionConfiguration(
-                url: "https://user:pass@example.com"
+                target: "ftp://example.com"
+            ),
+            HTTPInspectionConfiguration(target: "https:///path"),
+            HTTPInspectionConfiguration(
+                target: "https://user:pass@example.com"
             ),
             HTTPInspectionConfiguration(
-                url: "https://example.com",
+                target: "example.com",
                 timeoutSeconds: 0
             ),
             HTTPInspectionConfiguration(
-                url: "https://example.com",
+                target: "example.com",
                 timeoutSeconds: 61
             )
         ]
@@ -70,6 +99,7 @@ struct HTTPModelsTests {
             originalURL: "https://example.com",
             finalURL: "https://www.example.com",
             redirectCount: 1,
+            allowsUntrustedCertificates: false,
             timeToFirstByteMilliseconds: 42,
             totalMilliseconds: 50,
             transactions: [

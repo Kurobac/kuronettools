@@ -1,33 +1,75 @@
 import Foundation
 
+public enum HTTPURLScheme:
+    String,
+    CaseIterable,
+    Equatable,
+    Identifiable,
+    Sendable
+{
+    case https
+    case http
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        rawValue.uppercased()
+    }
+}
+
 public struct HTTPInspectionConfiguration: Equatable, Sendable {
-    public let url: String
+    public let scheme: HTTPURLScheme
+    public let target: String
     public let followsRedirects: Bool
     public let timeoutSeconds: Double
+    public let allowsUntrustedCertificates: Bool
+
+    public var url: String {
+        "\(scheme.rawValue)://\(target)"
+    }
 
     public init(
-        url: String,
+        scheme: HTTPURLScheme = .https,
+        target: String,
         followsRedirects: Bool = false,
-        timeoutSeconds: Double = 10
+        timeoutSeconds: Double = 10,
+        allowsUntrustedCertificates: Bool = false
     ) {
-        self.url = url
+        self.scheme = scheme
+        self.target = target
         self.followsRedirects = followsRedirects
         self.timeoutSeconds = timeoutSeconds
+        self.allowsUntrustedCertificates =
+            allowsUntrustedCertificates
     }
 
     public func validated() throws -> HTTPInspectionConfiguration {
-        let trimmedURL = url.trimmingCharacters(
+        var normalizedScheme = scheme
+        var trimmedTarget = target.trimmingCharacters(
             in: .whitespacesAndNewlines
         )
-        guard !trimmedURL.isEmpty else {
+        guard !trimmedTarget.isEmpty else {
             throw HTTPConfigurationError.emptyURL
         }
-        guard var components = URLComponents(string: trimmedURL),
-              let scheme = components.scheme?.lowercased() else {
-            throw HTTPConfigurationError.invalidURL
-        }
-        guard scheme == "http" || scheme == "https" else {
+
+        let lowercasedTarget = trimmedTarget.lowercased()
+        if lowercasedTarget.hasPrefix("https://") {
+            normalizedScheme = .https
+            trimmedTarget.removeFirst("https://".count)
+        } else if lowercasedTarget.hasPrefix("http://") {
+            normalizedScheme = .http
+            trimmedTarget.removeFirst("http://".count)
+        } else if Self.hasExplicitScheme(trimmedTarget) {
             throw HTTPConfigurationError.unsupportedScheme
+        }
+
+        guard !trimmedTarget.isEmpty else {
+            throw HTTPConfigurationError.missingHost
+        }
+        let composedURL =
+            "\(normalizedScheme.rawValue)://\(trimmedTarget)"
+        guard var components = URLComponents(string: composedURL) else {
+            throw HTTPConfigurationError.invalidURL
         }
         guard let host = components.host, !host.isEmpty else {
             throw HTTPConfigurationError.missingHost
@@ -44,17 +86,48 @@ public struct HTTPInspectionConfiguration: Equatable, Sendable {
             throw HTTPConfigurationError.invalidTimeout
         }
 
-        components.scheme = scheme
+        components.scheme = normalizedScheme.rawValue
         components.fragment = nil
         guard let normalizedURL = components.url else {
             throw HTTPConfigurationError.invalidURL
         }
+        let schemePrefix = "\(normalizedScheme.rawValue)://"
+        guard normalizedURL.absoluteString.hasPrefix(schemePrefix) else {
+            throw HTTPConfigurationError.invalidURL
+        }
+        let normalizedTarget = String(
+            normalizedURL.absoluteString.dropFirst(
+                schemePrefix.count
+            )
+        )
 
         return HTTPInspectionConfiguration(
-            url: normalizedURL.absoluteString,
+            scheme: normalizedScheme,
+            target: normalizedTarget,
             followsRedirects: followsRedirects,
-            timeoutSeconds: timeoutSeconds
+            timeoutSeconds: timeoutSeconds,
+            allowsUntrustedCertificates:
+                allowsUntrustedCertificates
         )
+    }
+
+    private static func hasExplicitScheme(
+        _ value: String
+    ) -> Bool {
+        guard let separator = value.range(of: "://") else {
+            return false
+        }
+        let prefix = value[..<separator.lowerBound]
+        guard let first = prefix.first, first.isLetter else {
+            return false
+        }
+        return prefix.dropFirst().allSatisfy {
+            $0.isLetter
+                || $0.isNumber
+                || $0 == "+"
+                || $0 == "-"
+                || $0 == "."
+        }
     }
 }
 
@@ -256,6 +329,7 @@ public struct HTTPInspectionResult: Equatable, Sendable {
     public let originalURL: String
     public let finalURL: String
     public let redirectCount: Int
+    public let allowsUntrustedCertificates: Bool
     public let timeToFirstByteMilliseconds: Double?
     public let totalMilliseconds: Double
     public let transactions: [HTTPTransaction]
@@ -276,6 +350,7 @@ public struct HTTPInspectionResult: Equatable, Sendable {
         originalURL: String,
         finalURL: String,
         redirectCount: Int,
+        allowsUntrustedCertificates: Bool,
         timeToFirstByteMilliseconds: Double?,
         totalMilliseconds: Double,
         transactions: [HTTPTransaction]
@@ -283,6 +358,8 @@ public struct HTTPInspectionResult: Equatable, Sendable {
         self.originalURL = originalURL
         self.finalURL = finalURL
         self.redirectCount = redirectCount
+        self.allowsUntrustedCertificates =
+            allowsUntrustedCertificates
         self.timeToFirstByteMilliseconds =
             timeToFirstByteMilliseconds
         self.totalMilliseconds = totalMilliseconds

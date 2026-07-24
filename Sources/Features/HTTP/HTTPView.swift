@@ -11,10 +11,10 @@ struct HTTPView: View {
 
         Form {
             Section("请求") {
-                EditableTargetComboBox(
-                    prompt: "HTTP 或 HTTPS URL",
-                    suggestions: Self.commonURLs,
-                    value: $model.url
+                HTTPURLInputField(
+                    scheme: $model.scheme,
+                    target: $model.target,
+                    suggestions: Self.commonTargets
                 )
 
                 LabeledContent("方法", value: "HEAD")
@@ -37,6 +37,11 @@ struct HTTPView: View {
                         value: seconds(model.timeoutSeconds)
                     )
                 }
+
+                Toggle(
+                    "允许不受信任证书",
+                    isOn: $model.allowsUntrustedCertificates
+                )
             }
             .disabled(model.isRunning)
 
@@ -95,16 +100,105 @@ struct HTTPView: View {
         }
     }
 
-    private static let commonURLs = [
-        "https://www.apple.com",
-        "https://www.cloudflare.com",
-        "https://www.google.com",
-        "https://www.baidu.com",
-        "http://example.com"
+    private static let commonTargets = [
+        "www.apple.com",
+        "www.cloudflare.com",
+        "www.google.com",
+        "www.baidu.com",
+        "example.com"
     ]
 
     private func seconds(_ value: Double) -> String {
         String(format: "%.1f 秒", value)
+    }
+}
+
+private struct HTTPURLInputField: View {
+    @Binding var scheme: HTTPURLScheme
+    @Binding var target: String
+    let suggestions: [String]
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Menu {
+                ForEach(HTTPURLScheme.allCases) { option in
+                    Button {
+                        scheme = option
+                    } label: {
+                        HStack {
+                            Text(option.title)
+                            if option == scheme {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            } label: {
+                menuLabel(scheme.title)
+            }
+            .buttonStyle(.plain)
+            .fixedSize(horizontal: true, vertical: false)
+            .accessibilityLabel("选择 HTTP 协议")
+
+            Divider()
+                .frame(height: 28)
+
+            TextField("URL", text: $target)
+                .keyboardType(.URL)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .layoutPriority(1)
+
+            Divider()
+                .frame(height: 28)
+
+            Menu {
+                ForEach(availableTargets, id: \.self) { target in
+                    Button {
+                        self.target = target
+                    } label: {
+                        HStack {
+                            Text(target)
+                            if target == normalizedTarget {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            } label: {
+                menuLabel("常用目标")
+            }
+            .buttonStyle(.plain)
+            .fixedSize(horizontal: true, vertical: false)
+            .accessibilityLabel("选择常用目标")
+        }
+    }
+
+    private func menuLabel(
+        _ title: String
+    ) -> some View {
+        HStack(spacing: 4) {
+            Text(title)
+            Image(systemName: "chevron.down")
+                .font(.caption2)
+        }
+        .foregroundStyle(.tint)
+        .padding(.horizontal, 4)
+        .frame(minHeight: 44)
+        .contentShape(Rectangle())
+    }
+
+    private var normalizedTarget: String {
+        target.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+    }
+
+    private var availableTargets: [String] {
+        var seen = Set<String>()
+        return suggestions.filter {
+            seen.insert($0).inserted
+        }
     }
 }
 
@@ -176,7 +270,11 @@ private struct HTTPResultView: View {
         }
 
         HTTPConnectionSection(
-            connection: transaction.connection
+            connection: transaction.connection,
+            allowsUntrustedCertificates:
+                result.allowsUntrustedCertificates,
+            isHTTPS: result.finalURL.lowercased()
+                .hasPrefix("https://")
         )
 
         Section("响应头") {
@@ -353,6 +451,8 @@ private struct HTTPRedirectSection: View {
 
 private struct HTTPConnectionSection: View {
     let connection: HTTPConnectionInfo
+    let allowsUntrustedCertificates: Bool
+    let isHTTPS: Bool
 
     var body: some View {
         Section("连接") {
@@ -387,6 +487,14 @@ private struct HTTPConnectionSection: View {
                 LabeledContent(
                     "密码套件",
                     value: cipherSuite
+                )
+            }
+            if isHTTPS {
+                LabeledContent(
+                    "证书校验",
+                    value: allowsUntrustedCertificates
+                        ? "允许不受信任"
+                        : "系统信任"
                 )
             }
 

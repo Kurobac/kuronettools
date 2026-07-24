@@ -5,9 +5,11 @@ import Observation
 @MainActor
 @Observable
 final class HTTPViewModel {
-    var url = "https://www.apple.com"
+    var scheme = HTTPURLScheme.https
+    var target = "www.apple.com"
     var followsRedirects = false
     var timeoutSeconds = 10.0
+    var allowsUntrustedCertificates = false
 
     private(set) var result: HTTPInspectionResult?
     private(set) var errorMessage: String?
@@ -35,15 +37,20 @@ final class HTTPViewModel {
         let configuration: HTTPInspectionConfiguration
         do {
             configuration = try HTTPInspectionConfiguration(
-                url: url,
+                scheme: scheme,
+                target: target,
                 followsRedirects: followsRedirects,
-                timeoutSeconds: timeoutSeconds
+                timeoutSeconds: timeoutSeconds,
+                allowsUntrustedCertificates:
+                    allowsUntrustedCertificates
             ).validated()
         } catch {
             errorMessage = error.localizedDescription
             statusMessage = "参数错误"
             return
         }
+        scheme = configuration.scheme
+        target = configuration.target
 
         isRunning = true
         isStopping = false
@@ -109,7 +116,8 @@ final class HTTPViewModel {
         runTask?.cancel()
         logStore.append(
             level: .warning,
-            message: "取消 HTTP HEAD：\(url)"
+            message: "取消 HTTP HEAD："
+                + "\(scheme.rawValue)://\(target)"
         )
     }
 
@@ -137,7 +145,7 @@ final class HTTPViewModel {
         guard let result else {
             if let errorMessage {
                 return [
-                    "HEAD \(url)",
+                    "HEAD \(scheme.rawValue)://\(target)",
                     "Error: \(errorMessage)"
                 ].joined(separator: "\n")
             }
@@ -149,6 +157,18 @@ final class HTTPViewModel {
             lines.append("Final URL: \(result.finalURL)")
         }
         lines.append("Redirects: \(result.redirectCount)")
+        if result.transactions.contains(where: {
+            $0.requestURL.lowercased().hasPrefix("https://")
+        }) {
+            lines.append(
+                "Certificate validation: "
+                    + (
+                        result.allowsUntrustedCertificates
+                            ? "allow untrusted"
+                            : "system trust"
+                    )
+            )
+        }
 
         for transaction in result.transactions {
             lines.append("")
