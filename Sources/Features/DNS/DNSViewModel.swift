@@ -7,22 +7,48 @@ import Observation
 final class DNSViewModel {
     var name = "example.com"
     var recordType = DNSRecordType.a
-    var server = "1.1.1.1"
-    var port = 53
+    var transport = DNSTransport.udp
+    var standardServer = "1.1.1.1"
+    var standardPort = 53
+    var tlsServer = "one.one.one.one"
+    var tlsPort = 853
+    var httpsURL = "https://cloudflare-dns.com/dns-query"
     var timeoutSeconds = 3.0
     var recursionDesired = true
 
-    private(set) var result: UDPDNSResult?
+    private(set) var result: DNSQueryResult?
     private(set) var errorMessage: String?
     private(set) var statusMessage: String?
     private(set) var isRunning = false
     private(set) var isStopping = false
 
     @ObservationIgnored
-    private let client = UDPDNSClient()
+    private let client = DNSQueryClient()
 
     @ObservationIgnored
     private var runTask: Task<Void, Never>?
+
+    var activeServer: String {
+        switch transport {
+        case .udp, .tcp:
+            standardServer
+        case .tls:
+            tlsServer
+        case .https:
+            httpsURL
+        }
+    }
+
+    var activePort: Int {
+        switch transport {
+        case .udp, .tcp:
+            standardPort
+        case .tls:
+            tlsPort
+        case .https:
+            transport.defaultPort
+        }
+    }
 
     func start(logStore: AppLogStore) {
         guard !isRunning else {
@@ -36,8 +62,9 @@ final class DNSViewModel {
             configuration = try DNSQueryConfiguration(
                 name: name,
                 type: recordType,
-                server: server,
-                port: port,
+                transport: transport,
+                server: activeServer,
+                port: activePort,
                 timeoutSeconds: timeoutSeconds,
                 recursionDesired: recursionDesired
             ).validated()
@@ -59,9 +86,10 @@ final class DNSViewModel {
         statusMessage = "正在查询…"
         logStore.append(
             level: .info,
-            message: "开始 UDP DNS：\(configuration.name) "
+            message: "开始 \(configuration.transport.title) DNS："
+                + "\(configuration.name) "
                 + "\(configuration.type.title) "
-                + "@\(configuration.server):\(configuration.port)"
+                + "@\(configuration.server)"
         )
 
         let client = client
@@ -85,7 +113,7 @@ final class DNSViewModel {
                 self.statusMessage = result.message.flags.responseCodeName
                 logStore.append(
                     level: .info,
-                    message: "UDP DNS 完成："
+                    message: "\(result.transport.title) DNS 完成："
                         + "\(result.message.flags.responseCodeName)，"
                         + "\(format(result.roundTripTimeMilliseconds)) ms，"
                         + "\(result.responseBytes.count) 字节"
@@ -97,7 +125,8 @@ final class DNSViewModel {
                 self.statusMessage = "失败"
                 logStore.append(
                     level: .error,
-                    message: "UDP DNS 失败：\(error.localizedDescription)"
+                    message: "\(configuration.transport.title) DNS 失败："
+                        + error.localizedDescription
                 )
             }
         }
@@ -113,7 +142,7 @@ final class DNSViewModel {
         runTask?.cancel()
         logStore.append(
             level: .warning,
-            message: "取消 UDP DNS：\(name)"
+            message: "取消 \(transport.title) DNS：\(name)"
         )
     }
 
@@ -138,10 +167,10 @@ final class DNSViewModel {
                 + "ADDITIONAL: \(message.additionals.count)"
         ]
 
-        if message.flags.isTruncated {
+        if message.flags.isTruncated, result.transport == .udp {
             lines.append(
                 ";; WARNING: UDP response is truncated; "
-                    + "select TCP when that transport is available."
+                    + "select TCP to retry."
             )
         }
 
@@ -168,8 +197,11 @@ final class DNSViewModel {
                 + "\(format(result.roundTripTimeMilliseconds)) msec"
         )
         lines.append(
-            ";; SERVER: \(result.server)#\(result.port) (UDP)"
+            ";; SERVER: \(result.endpoint) (\(result.transport.title))"
         )
+        if let httpStatusCode = result.httpStatusCode {
+            lines.append(";; HTTP status: \(httpStatusCode)")
+        }
         lines.append(
             ";; MSG SIZE  sent: \(result.queryBytes.count), "
                 + "rcvd: \(result.responseBytes.count)"

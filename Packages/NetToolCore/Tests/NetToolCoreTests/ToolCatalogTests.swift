@@ -24,7 +24,7 @@ struct ToolCatalogTests {
         #expect(ToolCatalog.all.first?.availability == .available)
     }
 
-    @Test("UDP DNS is available in Step 2A")
+    @Test("DNS is available in Step 2")
     func dnsIsAvailable() throws {
         let dns = try #require(
             ToolCatalog.all.first { $0.id == "dns" }

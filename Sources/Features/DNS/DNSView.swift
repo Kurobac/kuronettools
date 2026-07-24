@@ -26,24 +26,83 @@ struct DNSView: View {
             .disabled(model.isRunning)
 
             Section("传输") {
-                LabeledContent("协议", value: "UDP")
+                Picker("协议", selection: $model.transport) {
+                    ForEach(DNSTransport.allCases) { transport in
+                        Text(transport.title)
+                            .tag(transport)
+                    }
+                }
+                .pickerStyle(.segmented)
 
-                TextField("DNS 服务器", text: $model.server)
+                switch model.transport {
+                case .udp, .tcp:
+                    TextField(
+                        "DNS 服务器",
+                        text: $model.standardServer
+                    )
                     .keyboardType(.URL)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
 
-                PublicDNSPresetMenu(
-                    title: "常用服务器",
-                    address: $model.server
-                )
+                    PublicDNSPresetMenu(
+                        title: "常用服务器",
+                        transport: model.transport,
+                        address: $model.standardServer
+                    )
 
-                TextField(
-                    "端口",
-                    value: $model.port,
-                    format: .number
-                )
-                .keyboardType(.numberPad)
+                    TextField(
+                        "端口",
+                        value: $model.standardPort,
+                        format: .number
+                    )
+                    .keyboardType(.numberPad)
+                case .tls:
+                    TextField(
+                        "DoT 服务器",
+                        text: $model.tlsServer
+                    )
+                    .keyboardType(.URL)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+
+                    PublicDNSPresetMenu(
+                        title: "常用服务器",
+                        transport: .tls,
+                        address: $model.tlsServer
+                    )
+
+                    TextField(
+                        "端口",
+                        value: $model.tlsPort,
+                        format: .number
+                    )
+                    .keyboardType(.numberPad)
+
+                    Text("使用系统信任链严格校验证书。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                case .https:
+                    TextField(
+                        "DoH URL",
+                        text: $model.httpsURL
+                    )
+                    .keyboardType(.URL)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+
+                    PublicDNSPresetMenu(
+                        title: "常用服务器",
+                        transport: .https,
+                        address: $model.httpsURL
+                    )
+
+                    Text(
+                        "使用 RFC 8484 POST；仅接受 HTTPS "
+                            + "与 application/dns-message。"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
 
                 Stepper(
                     value: $model.timeoutSeconds,
@@ -168,21 +227,28 @@ struct DNSView: View {
 }
 
 private struct DNSResponseOverview: View {
-    let result: UDPDNSResult
+    let result: DNSQueryResult
 
     var body: some View {
         let flags = result.message.flags
 
         Section("响应") {
             LabeledContent("状态", value: flags.responseCodeName)
+            LabeledContent("协议", value: result.transport.title)
             LabeledContent(
                 "Flags",
                 value: flags.activeNames.joined(separator: " ")
             )
             LabeledContent(
-                "服务器",
-                value: "\(result.server):\(result.port)"
+                "端点",
+                value: result.endpoint
             )
+            if let httpStatusCode = result.httpStatusCode {
+                LabeledContent(
+                    "HTTP",
+                    value: String(httpStatusCode)
+                )
+            }
             LabeledContent(
                 "耗时",
                 value: String(
@@ -197,13 +263,21 @@ private struct DNSResponseOverview: View {
 
             if flags.isTruncated {
                 Label(
-                    "UDP 响应设置了 TC 标志，结果可能不完整。"
-                        + "本阶段不会自动切换 TCP。",
+                    truncationMessage,
                     systemImage: "exclamationmark.triangle.fill"
                 )
                 .foregroundStyle(.orange)
             }
         }
+    }
+
+    private var truncationMessage: String {
+        if result.transport == .udp {
+            return "UDP 响应设置了 TC 标志，结果可能不完整；"
+                + "请选择 TCP 重试。"
+        }
+        return "\(result.transport.title) 响应仍设置了 TC 标志，"
+            + "结果可能不完整。"
     }
 }
 

@@ -23,4 +23,25 @@ struct PublicDNSPresetTests {
                     + PublicDNSPreset.global.count
         )
     }
+
+    @Test("Encrypted transports only expose configured endpoints")
+    func encryptedEndpointsAreExplicit() throws {
+        let aliDNS = try #require(
+            PublicDNSPreset.all.first { $0.address == "223.5.5.5" }
+        )
+        let dns114 = try #require(
+            PublicDNSPreset.all.first {
+                $0.address == "114.114.114.114"
+            }
+        )
+
+        #expect(aliDNS.endpoint(for: .udp) == "223.5.5.5")
+        #expect(aliDNS.endpoint(for: .tls) == "dns.alidns.com")
+        #expect(
+            aliDNS.endpoint(for: .https)
+                == "https://dns.alidns.com/dns-query"
+        )
+        #expect(dns114.endpoint(for: .tls) == nil)
+        #expect(dns114.endpoint(for: .https) == nil)
+    }
 }

@@ -16,6 +16,19 @@ struct DNSModelsTests {
         #expect(configuration.port == 53)
     }
 
+    @Test("DoH configuration requires an HTTPS URL")
+    func validatesHTTPSConfiguration() throws {
+        let configuration = try DNSQueryConfiguration(
+            name: "example.com",
+            transport: .https,
+            server: " https://dns.example/dns-query ",
+            port: 0
+        ).validated()
+
+        #expect(configuration.server == "https://dns.example/dns-query")
+        #expect(configuration.port == 443)
+    }
+
     @Test(
         "Invalid configuration is rejected",
         arguments: [
@@ -26,6 +39,16 @@ struct DNSModelsTests {
             DNSQueryConfiguration(
                 name: "example.com",
                 timeoutSeconds: 31
+            ),
+            DNSQueryConfiguration(
+                name: "example.com",
+                transport: .https,
+                server: "http://dns.example/dns-query"
+            ),
+            DNSQueryConfiguration(
+                name: "example.com",
+                transport: .https,
+                server: "not a URL"
             )
         ]
     )
@@ -35,6 +58,14 @@ struct DNSModelsTests {
         #expect(throws: DNSConfigurationError.self) {
             try configuration.validated()
         }
+    }
+
+    @Test("Transports expose their standard ports")
+    func exposesTransportPorts() {
+        #expect(DNSTransport.udp.defaultPort == 53)
+        #expect(DNSTransport.tcp.defaultPort == 53)
+        #expect(DNSTransport.tls.defaultPort == 853)
+        #expect(DNSTransport.https.defaultPort == 443)
     }
 
     @Test("Flags expose dig-style names and response code")

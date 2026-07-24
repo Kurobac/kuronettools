@@ -84,7 +84,7 @@ public enum ToolCatalog {
         ToolDescriptor(
             id: "dns",
             title: "DNS 查询",
-            summary: "UDP 直连查询",
+            summary: "UDP、TCP、DoT 与 DoH",
             systemImage: "network",
             category: .dns,
             availability: .available

@@ -2,7 +2,9 @@ import Foundation
 import NetToolCore
 import Network
 
-struct UDPDNSClient: Sendable {
+struct StreamDNSClient: Sendable {
+    let usesTLS: Bool
+
     func exchange(
         configuration: DNSQueryConfiguration,
         queryBytes: [UInt8]
@@ -15,10 +17,11 @@ struct UDPDNSClient: Sendable {
             throw DNSClientError.invalidPort
         }
 
-        let operation = UDPQueryOperation(
+        let operation = StreamQueryOperation(
             configuration: configuration,
-            queryBytes: queryBytes,
-            port: port
+            framedQuery: try DNSStreamCodec.frame(queryBytes),
+            port: port,
+            usesTLS: usesTLS
         )
 
         return try await withTaskCancellationHandler {
@@ -31,12 +34,13 @@ struct UDPDNSClient: Sendable {
     }
 }
 
-private final class UDPQueryOperation: @unchecked Sendable {
+private final class StreamQueryOperation: @unchecked Sendable {
     private let configuration: DNSQueryConfiguration
-    private let queryBytes: [UInt8]
+    private let framedQuery: [UInt8]
+    private let transport: DNSTransport
     private let connection: NWConnection
     private let queue = DispatchQueue(
-        label: "dev.kurobac.NetTool.UDPDNS"
+        label: "dev.kurobac.NetTool.StreamDNS"
     )
     private let stateLock = NSLock()
 
@@ -46,19 +50,25 @@ private final class UDPQueryOperation: @unchecked Sendable {
     private var cancellationRequested = false
     private var didFinish = false
     private var didSend = false
+    private var responseBuffer: [UInt8] = []
     private var startedAt: UInt64 = 0
 
     init(
         configuration: DNSQueryConfiguration,
-        queryBytes: [UInt8],
-        port: NWEndpoint.Port
+        framedQuery: [UInt8],
+        port: NWEndpoint.Port,
+        usesTLS: Bool
     ) {
         self.configuration = configuration
-        self.queryBytes = queryBytes
+        self.framedQuery = framedQuery
+        self.transport = usesTLS ? .tls : .tcp
+
+        let parameters: NWParameters = usesTLS ? .tls : .tcp
+
         self.connection = NWConnection(
             host: NWEndpoint.Host(configuration.server),
             port: port,
-            using: .udp
+            using: parameters
         )
     }
 
@@ -85,7 +95,7 @@ private final class UDPQueryOperation: @unchecked Sendable {
             }
             finish(
                 throwing: DNSClientError.timeout(
-                    transport: .udp,
+                    transport: transport,
                     seconds: configuration.timeoutSeconds
                 )
             )
@@ -118,7 +128,7 @@ private final class UDPQueryOperation: @unchecked Sendable {
         case .waiting(let error), .failed(let error):
             finish(
                 throwing: DNSClientError.network(
-                    transport: .udp,
+                    transport: transport,
                     message: error.localizedDescription
                 )
             )
@@ -129,7 +139,7 @@ private final class UDPQueryOperation: @unchecked Sendable {
         @unknown default:
             finish(
                 throwing: DNSClientError.network(
-                    transport: .udp,
+                    transport: transport,
                     message: "未知的 Network.framework 状态。"
                 )
             )
@@ -143,7 +153,7 @@ private final class UDPQueryOperation: @unchecked Sendable {
         didSend = true
 
         connection.send(
-            content: Data(queryBytes),
+            content: Data(framedQuery),
             contentContext: .defaultMessage,
             isComplete: true,
             completion: .contentProcessed { [weak self] error in
@@ -153,7 +163,7 @@ private final class UDPQueryOperation: @unchecked Sendable {
                 if let error {
                     finish(
                         throwing: DNSClientError.network(
-                            transport: .udp,
+                            transport: transport,
                             message: error.localizedDescription
                         )
                     )
@@ -165,42 +175,55 @@ private final class UDPQueryOperation: @unchecked Sendable {
     }
 
     private func receiveResponse() {
-        connection.receiveMessage { [weak self] content, _, _, error in
+        connection.receive(
+            minimumIncompleteLength: 1,
+            maximumLength: Int(UInt16.max) + 2
+        ) { [weak self] content, _, isComplete, error in
             guard let self else {
                 return
             }
             if let error {
                 finish(
                     throwing: DNSClientError.network(
-                        transport: .udp,
+                        transport: transport,
                         message: error.localizedDescription
                     )
                 )
                 return
             }
-            guard let content, !content.isEmpty else {
-                finish(
-                    throwing: DNSClientError.emptyResponse(
-                        transport: .udp
+            if let content, !content.isEmpty {
+                responseBuffer.append(contentsOf: content)
+            }
+
+            do {
+                if let responseBytes =
+                    try DNSStreamCodec.decodeSingleFrame(responseBuffer) {
+                    let elapsed =
+                        DispatchTime.now().uptimeNanoseconds - startedAt
+                    finish(
+                        returning: DNSExchange(
+                            responseBytes: responseBytes,
+                            endpoint: dnsHostPortDescription(
+                                host: configuration.server,
+                                port: configuration.port
+                            ),
+                            roundTripTimeMilliseconds:
+                                Double(elapsed) / 1_000_000,
+                            httpStatusCode: nil
+                        )
                     )
-                )
+                    return
+                }
+            } catch {
+                finish(throwing: error)
                 return
             }
 
-            let elapsed =
-                DispatchTime.now().uptimeNanoseconds - startedAt
-            finish(
-                returning: DNSExchange(
-                    responseBytes: Array(content),
-                    endpoint: dnsHostPortDescription(
-                        host: configuration.server,
-                        port: configuration.port
-                    ),
-                    roundTripTimeMilliseconds:
-                        Double(elapsed) / 1_000_000,
-                    httpStatusCode: nil
-                )
-            )
+            if isComplete {
+                finish(throwing: DNSClientError.streamClosed)
+            } else {
+                receiveResponse()
+            }
         }
     }
 

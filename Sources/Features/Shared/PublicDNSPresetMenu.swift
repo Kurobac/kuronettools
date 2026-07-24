@@ -5,7 +5,18 @@ import SwiftUI
 @MainActor
 struct PublicDNSPresetMenu: View {
     let title: String
+    let transport: DNSTransport
     @Binding var address: String
+
+    init(
+        title: String,
+        transport: DNSTransport = .udp,
+        address: Binding<String>
+    ) {
+        self.title = title
+        self.transport = transport
+        _address = address
+    }
 
     var body: some View {
         Menu {
@@ -30,7 +41,7 @@ struct PublicDNSPresetMenu: View {
             in: .whitespacesAndNewlines
         )
         return PublicDNSPreset.all.first {
-            $0.address == normalizedAddress
+            $0.endpoint(for: transport) == normalizedAddress
         }
     }
 
@@ -40,13 +51,15 @@ struct PublicDNSPresetMenu: View {
     ) -> some View {
         Section(title) {
             ForEach(presets) { preset in
-                Button {
-                    address = preset.address
-                } label: {
-                    HStack {
-                        Text("\(preset.name) · \(preset.address)")
-                        if preset.id == selectedPreset?.id {
-                            Image(systemName: "checkmark")
+                if let endpoint = preset.endpoint(for: transport) {
+                    Button {
+                        address = endpoint
+                    } label: {
+                        HStack {
+                            Text("\(preset.name) · \(endpoint)")
+                            if preset.id == selectedPreset?.id {
+                                Image(systemName: "checkmark")
+                            }
                         }
                     }
                 }

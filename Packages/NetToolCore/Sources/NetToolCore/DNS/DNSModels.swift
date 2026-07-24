@@ -1,5 +1,49 @@
 import Foundation
 
+public enum DNSTransport:
+    String,
+    CaseIterable,
+    Equatable,
+    Hashable,
+    Identifiable,
+    Sendable
+{
+    case udp
+    case tcp
+    case tls
+    case https
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .udp:
+            "UDP"
+        case .tcp:
+            "TCP"
+        case .tls:
+            "DoT"
+        case .https:
+            "DoH"
+        }
+    }
+
+    public var defaultPort: Int {
+        switch self {
+        case .udp, .tcp:
+            53
+        case .tls:
+            853
+        case .https:
+            443
+        }
+    }
+
+    public var usesHTTPSURL: Bool {
+        self == .https
+    }
+}
+
 public enum DNSRecordType:
     UInt16,
     CaseIterable,
@@ -62,6 +106,7 @@ public enum DNSRecordType:
 public struct DNSQueryConfiguration: Equatable, Sendable {
     public let name: String
     public let type: DNSRecordType
+    public let transport: DNSTransport
     public let server: String
     public let port: Int
     public let timeoutSeconds: Double
@@ -70,6 +115,7 @@ public struct DNSQueryConfiguration: Equatable, Sendable {
     public init(
         name: String,
         type: DNSRecordType = .a,
+        transport: DNSTransport = .udp,
         server: String = "1.1.1.1",
         port: Int = 53,
         timeoutSeconds: Double = 3,
@@ -77,6 +123,7 @@ public struct DNSQueryConfiguration: Equatable, Sendable {
     ) {
         self.name = name
         self.type = type
+        self.transport = transport
         self.server = server
         self.port = port
         self.timeoutSeconds = timeoutSeconds
@@ -97,7 +144,17 @@ public struct DNSQueryConfiguration: Equatable, Sendable {
         guard !trimmedServer.isEmpty else {
             throw DNSConfigurationError.emptyServer
         }
-        guard (1 ... 65_535).contains(port) else {
+        var validatedPort = port
+        if transport.usesHTTPSURL {
+            guard let url = URL(string: trimmedServer),
+                  url.scheme?.lowercased() == "https",
+                  let host = url.host,
+                  !host.isEmpty else {
+                throw DNSConfigurationError.invalidHTTPSURL
+            }
+            validatedPort = url.port ?? transport.defaultPort
+        }
+        guard (1 ... 65_535).contains(validatedPort) else {
             throw DNSConfigurationError.invalidPort
         }
         guard timeoutSeconds.isFinite,
@@ -108,8 +165,9 @@ public struct DNSQueryConfiguration: Equatable, Sendable {
         return DNSQueryConfiguration(
             name: trimmedName,
             type: type,
+            transport: transport,
             server: trimmedServer,
-            port: port,
+            port: validatedPort,
             timeoutSeconds: timeoutSeconds,
             recursionDesired: recursionDesired
         )
@@ -120,6 +178,7 @@ public enum DNSConfigurationError: Error, Equatable, LocalizedError {
     case emptyName
     case emptyServer
     case invalidPort
+    case invalidHTTPSURL
     case invalidTimeout
 
     public var errorDescription: String? {
@@ -130,6 +189,8 @@ public enum DNSConfigurationError: Error, Equatable, LocalizedError {
             "请输入 DNS 服务器。"
         case .invalidPort:
             "DNS 端口必须在 1 到 65535 之间。"
+        case .invalidHTTPSURL:
+            "DoH 端点必须是包含主机名的 HTTPS URL。"
         case .invalidTimeout:
             "超时时间必须在 0.1 到 30 秒之间。"
         }

@@ -12,11 +12,14 @@ struct HomeView: View {
             List {
                 Section {
                     LabeledContent("开发阶段") {
-                        Text("Step 2A")
+                        Text("Step 2")
                             .foregroundStyle(.secondary)
                     }
 
-                    Text("Ping 与 UDP DNS 已可用；其他传输和工具会在后续阶段逐项启用。")
+                    Text(
+                        "Ping 与 UDP、TCP、DoT、DoH DNS 已可用；"
+                            + "其他工具会在后续阶段逐项启用。"
+                    )
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }

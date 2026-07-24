@@ -30,8 +30,11 @@ struct AboutView: View {
             }
 
             Section("当前阶段") {
-                LabeledContent("里程碑", value: "Step 2A")
-                Text("Ping 与 UDP DNS 查询已可用。DNS 的 TCP、DoT、DoH 和高级选项会继续按小阶段实现。")
+                LabeledContent("里程碑", value: "Step 2")
+                Text(
+                    "Ping 与 UDP、TCP、DoT、DoH DNS 查询已可用。"
+                        + "高级 DNS 选项暂缓实现。"
+                )
                     .foregroundStyle(.secondary)
             }
         }
