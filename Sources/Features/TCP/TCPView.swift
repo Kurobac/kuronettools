@@ -158,7 +158,7 @@ private struct TCPPortField: View {
         TextField(
             "端口",
             value: $port,
-            format: .number
+            format: .number.grouping(.never)
         )
         .keyboardType(.numberPad)
         .padding(.trailing, 28)

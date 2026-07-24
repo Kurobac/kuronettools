@@ -45,7 +45,7 @@ struct DNSView: View {
                     TextField(
                         "端口",
                         value: $model.standardPort,
-                        format: .number
+                        format: .number.grouping(.never)
                     )
                     .keyboardType(.numberPad)
                 case .tls:
@@ -58,7 +58,7 @@ struct DNSView: View {
                     TextField(
                         "端口",
                         value: $model.tlsPort,
-                        format: .number
+                        format: .number.grouping(.never)
                     )
                     .keyboardType(.numberPad)
                 case .https:
@@ -71,7 +71,7 @@ struct DNSView: View {
                     TextField(
                         "端口",
                         value: $model.httpsPort,
-                        format: .number
+                        format: .number.grouping(.never)
                     )
                     .keyboardType(.numberPad)
                 }
