@@ -386,7 +386,7 @@ private final class TLSInspectionOperation: @unchecked Sendable {
             return .untrustedCertificate(message: message)
         }
 
-        switch error {
+        return switch error {
         case .dns:
             .dnsFailure(message: error.localizedDescription)
         case .posix(let code):
