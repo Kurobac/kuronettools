@@ -5,7 +5,6 @@ import SwiftUI
 struct TCPView: View {
     @Environment(AppLogStore.self) private var logStore
     @State private var model = TCPViewModel()
-    @State private var scrollPosition: TCPScrollSection?
 
     var body: some View {
         @Bindable var model = model
@@ -32,7 +31,6 @@ struct TCPView: View {
                 .pickerStyle(.segmented)
             }
             .disabled(model.isRunning)
-            .id(TCPScrollSection.target)
 
             Section("参数") {
                 Stepper(
@@ -47,7 +45,6 @@ struct TCPView: View {
                 }
             }
             .disabled(model.isRunning)
-            .id(TCPScrollSection.parameters)
 
             Section {
                 RunActionButton(
@@ -60,16 +57,15 @@ struct TCPView: View {
                 } stopAction: {
                     model.stop(logStore: logStore)
                 }
+            }
 
-                if let statusMessage = model.statusMessage {
-                    LabeledContent("状态") {
-                        Text(statusMessage)
-                            .font(.callout)
-                            .textSelection(.enabled)
-                    }
+            if let statusMessage = model.statusMessage {
+                Section("状态") {
+                    Text(statusMessage)
+                        .font(.callout)
+                        .textSelection(.enabled)
                 }
             }
-            .id(TCPScrollSection.action)
 
             if let result = model.result {
                 Section("结果") {
@@ -93,7 +89,6 @@ struct TCPView: View {
                         )
                     )
                 }
-                .id(TCPScrollSection.result)
             }
 
             if let errorMessage = model.errorMessage {
@@ -102,10 +97,8 @@ struct TCPView: View {
                         .foregroundStyle(.red)
                         .textSelection(.enabled)
                 }
-                .id(TCPScrollSection.error)
             }
         }
-        .scrollPosition(id: $scrollPosition)
         .navigationTitle("TCP 连接")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -149,12 +142,4 @@ struct TCPView: View {
     private func milliseconds(_ value: Double) -> String {
         String(format: "%.3f ms", value)
     }
-}
-
-private enum TCPScrollSection: Hashable {
-    case target
-    case parameters
-    case action
-    case result
-    case error
 }

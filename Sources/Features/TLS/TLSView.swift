@@ -6,7 +6,6 @@ struct TLSView: View {
     @Environment(AppLogStore.self) private var logStore
     @State private var model = TLSViewModel()
     @State private var alpnPreset = TLSALPNPreset.web
-    @State private var scrollPosition: TLSScrollSection?
 
     var body: some View {
         @Bindable var model = model
@@ -41,7 +40,6 @@ struct TLSView: View {
                 .pickerStyle(.segmented)
             }
             .disabled(model.isRunning)
-            .id(TLSScrollSection.target)
 
             Section("参数") {
                 Picker("ALPN", selection: $alpnPreset) {
@@ -83,7 +81,6 @@ struct TLSView: View {
                 )
             }
             .disabled(model.isRunning)
-            .id(TLSScrollSection.parameters)
 
             Section {
                 RunActionButton(
@@ -96,20 +93,18 @@ struct TLSView: View {
                 } stopAction: {
                     model.stop(logStore: logStore)
                 }
+            }
 
-                if let statusMessage = model.statusMessage {
-                    LabeledContent("状态") {
-                        Text(statusMessage)
-                            .font(.callout)
-                            .textSelection(.enabled)
-                    }
+            if let statusMessage = model.statusMessage {
+                Section("状态") {
+                    Text(statusMessage)
+                        .font(.callout)
+                        .textSelection(.enabled)
                 }
             }
-            .id(TLSScrollSection.action)
 
             if let result = model.result {
                 TLSResultView(result: result)
-                    .id(TLSScrollSection.result)
             }
 
             if let errorMessage = model.errorMessage {
@@ -118,10 +113,8 @@ struct TLSView: View {
                         .foregroundStyle(.red)
                         .textSelection(.enabled)
                 }
-                .id(TLSScrollSection.error)
             }
         }
-        .scrollPosition(id: $scrollPosition)
         .navigationTitle("TLS 检查")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -160,14 +153,6 @@ struct TLSView: View {
     private func seconds(_ value: Double) -> String {
         String(format: "%.1f 秒", value)
     }
-}
-
-private enum TLSScrollSection: Hashable {
-    case target
-    case parameters
-    case action
-    case result
-    case error
 }
 
 private enum TLSALPNPreset:

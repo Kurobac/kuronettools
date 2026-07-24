@@ -5,7 +5,6 @@ import SwiftUI
 struct PingView: View {
     @Environment(AppLogStore.self) private var logStore
     @State private var model = PingViewModel()
-    @State private var scrollPosition: PingScrollSection?
 
     var body: some View {
         @Bindable var model = model
@@ -27,7 +26,6 @@ struct PingView: View {
                 .pickerStyle(.segmented)
             }
             .disabled(model.isRunning)
-            .id(PingScrollSection.target)
 
             Section("参数") {
                 Stepper(
@@ -66,7 +64,6 @@ struct PingView: View {
                 )
             }
             .disabled(model.isRunning)
-            .id(PingScrollSection.parameters)
 
             Section {
                 RunActionButton(
@@ -79,16 +76,15 @@ struct PingView: View {
                 } stopAction: {
                     model.stop(logStore: logStore)
                 }
+            }
 
-                if let statusMessage = model.statusMessage {
-                    LabeledContent("状态") {
-                        Text(statusMessage)
-                            .font(.callout)
-                            .textSelection(.enabled)
-                    }
+            if let statusMessage = model.statusMessage {
+                Section("状态") {
+                    Text(statusMessage)
+                        .font(.callout)
+                        .textSelection(.enabled)
                 }
             }
-            .id(PingScrollSection.action)
 
             if !model.results.isEmpty {
                 Section("响应") {
@@ -96,14 +92,12 @@ struct PingView: View {
                         PingResultRow(item: item)
                     }
                 }
-                .id(PingScrollSection.responses)
             }
 
             if let summary = model.summary {
                 Section("统计") {
                     PingSummaryView(summary: summary)
                 }
-                .id(PingScrollSection.summary)
             }
 
             if let errorMessage = model.errorMessage {
@@ -112,10 +106,8 @@ struct PingView: View {
                         .foregroundStyle(.red)
                         .textSelection(.enabled)
                 }
-                .id(PingScrollSection.error)
             }
         }
-        .scrollPosition(id: $scrollPosition)
         .navigationTitle("Ping")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -147,15 +139,6 @@ struct PingView: View {
     private func seconds(_ value: Double) -> String {
         String(format: "%.1f 秒", value)
     }
-}
-
-private enum PingScrollSection: Hashable {
-    case target
-    case parameters
-    case action
-    case responses
-    case summary
-    case error
 }
 
 private struct PingResultRow: View {
