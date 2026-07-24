@@ -65,7 +65,8 @@ public enum ToolCatalog {
             title: "Traceroute",
             summary: "逐跳检查网络路径",
             systemImage: "point.bottomleft.forward.to.point.topright.scurvepath",
-            category: .diagnostics
+            category: .diagnostics,
+            availability: .available
         ),
         ToolDescriptor(
             id: "tcp",

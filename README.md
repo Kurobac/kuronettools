@@ -5,10 +5,11 @@ NetTool 是一个面向 iPhone 和 iPad 的个人网络诊断工具箱。项目�
 
 ## 当前状态
 
-Step 3C 已包含：
+Step 4A 已包含：
 
 - iOS 26 SwiftUI 应用骨架；
 - 可选择 IPv4、IPv6 或自动解析的 Ping；
+- IPv4/IPv6 ICMP Traceroute，每跳多次探测、超时显示、停止与文本导出；
 - Ping 次数、发送间隔、超时与 payload 参数；
 - 实时响应、TTL、RTT、丢包与 min/avg/max/mdev 统计；
 - 运行取消、文本结果分享与运行日志；
@@ -30,13 +31,13 @@ Step 3C 已包含：
 - HTTP 状态、协议、完整响应头、重定向链与 curl 风格文本导出；
 - HTTP DNS、TCP、TLS、首字节和总耗时，以及本地/远端地址和连接属性；
 - HTTPS 默认使用系统信任链，也可按次允许不受信任证书；
-- Traceroute、端口扫描和网络信息入口；
+- 端口扫描和网络信息入口；
 - 应用版本与运行环境页面；
 - 独立的 `NetToolCore` Swift Package 与基础测试；
 - GitHub Actions 无签名 IPA 构建。
 
-除 Ping、DNS、TCP 连接、TLS 检查和 HTTP 信息外的网络工具目前显示“规划中”，
-会在后续步骤逐项实现。
+除 Ping、Traceroute、DNS、TCP 连接、TLS 检查和 HTTP 信息外的网络工具目前
+显示“规划中”，会在后续步骤逐项实现。
 
 UDP 查询直接向指定服务器发送数据报；TCP 与 DoT 使用两字节长度前缀承载 DNS
 报文；DoH 仅接受 HTTPS 与 `application/dns-message`。DoT 使用系统信任链严格
@@ -126,12 +127,12 @@ bash scripts/build_unsigned_ipa.sh
 1. Ping（已完成）
 2. DNS（UDP、TCP、DoT、DoH 已完成）
 3. TCP、TLS 与 HTTP（已完成）
-4. Traceroute 与 TCP 端口扫描
+4. Traceroute（已完成）与 TCP 端口扫描
 5. 接口、地址、路由和 Resolver 信息
 
 ## 开源致谢
 
-Ping 的 Darwin socket 实现借鉴了 MIT 许可的
+Ping 与 Traceroute 的 Darwin socket 实现借鉴了 MIT 许可的
 [NetDiagnosis](https://github.com/453jerry/NetDiagnosis)。项目保留了对应的许可证文本：
 `Vendor/Licenses/NetDiagnosis-MIT.txt`。
 

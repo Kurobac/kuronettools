@@ -59,4 +59,13 @@ struct ToolCatalogTests {
 
         #expect(http.availability == .available)
     }
+
+    @Test("Traceroute is available in Step 4A")
+    func tracerouteIsAvailable() throws {
+        let traceroute = try #require(
+            ToolCatalog.all.first { $0.id == "traceroute" }
+        )
+
+        #expect(traceroute.availability == .available)
+    }
 }

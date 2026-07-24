@@ -87,6 +87,37 @@ public enum ICMPPacketCodec {
             && header.sequence == sequence
     }
 
+    public static func isTimeExceededResponse(
+        in packet: [UInt8],
+        offset: Int,
+        family: ICMPAddressFamily,
+        identifier: UInt16,
+        sequence: UInt16
+    ) -> Bool {
+        guard let outerHeader = parseHeader(
+            from: packet,
+            offset: offset
+        ),
+        outerHeader.type == timeExceededType(for: family),
+        outerHeader.code == 0,
+        let embeddedOffset = embeddedICMPOffset(
+            in: packet,
+            offset: offset + headerLength,
+            family: family
+        ),
+        let embeddedHeader = parseHeader(
+            from: packet,
+            offset: embeddedOffset
+        ) else {
+            return false
+        }
+
+        return embeddedHeader.type == echoRequestType(for: family)
+            && embeddedHeader.code == 0
+            && embeddedHeader.identifier == identifier
+            && embeddedHeader.sequence == sequence
+    }
+
     public static func checksum(of bytes: [UInt8]) -> UInt16 {
         var sum: UInt32 = 0
         var index = 0
@@ -128,6 +159,48 @@ public enum ICMPPacketCodec {
             0
         case .ipv6:
             129
+        }
+    }
+
+    public static func timeExceededType(
+        for family: ICMPAddressFamily
+    ) -> UInt8 {
+        switch family {
+        case .ipv4:
+            11
+        case .ipv6:
+            3
+        }
+    }
+
+    private static func embeddedICMPOffset(
+        in packet: [UInt8],
+        offset: Int,
+        family: ICMPAddressFamily
+    ) -> Int? {
+        switch family {
+        case .ipv4:
+            guard offset >= 0,
+                  packet.count >= offset + 20,
+                  packet[offset] >> 4 == 4,
+                  packet[offset + 9] == 1 else {
+                return nil
+            }
+            let headerLength = Int(packet[offset] & 0x0f) * 4
+            guard headerLength >= 20,
+                  packet.count >= offset + headerLength
+                    + Self.headerLength else {
+                return nil
+            }
+            return offset + headerLength
+        case .ipv6:
+            guard offset >= 0,
+                  packet.count >= offset + 40 + Self.headerLength,
+                  packet[offset] >> 4 == 6,
+                  packet[offset + 6] == 58 else {
+                return nil
+            }
+            return offset + 40
         }
     }
 

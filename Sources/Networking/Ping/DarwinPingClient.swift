@@ -107,7 +107,7 @@ struct DarwinPingClient: Sendable {
     }
 }
 
-private extension DarwinPingClient {
+extension DarwinPingClient {
     struct ResolvedEndpoint {
         let storage: sockaddr_storage
         let length: socklen_t
