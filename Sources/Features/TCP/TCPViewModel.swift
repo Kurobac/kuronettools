@@ -82,10 +82,16 @@ final class TCPViewModel {
             } catch {
                 self.errorMessage = error.localizedDescription
                 self.statusMessage = "失败"
+                let diagnosticContext =
+                    (error as? TCPConnectionClientError)?
+                        .timeoutOriginDescription
+                        .map { "（来源：\($0)）" }
+                    ?? ""
                 logStore.append(
                     level: .error,
                     message: "TCP 连接失败："
                         + error.localizedDescription
+                        + diagnosticContext
                 )
             }
         }

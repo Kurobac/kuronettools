@@ -30,12 +30,21 @@ struct TCPConnectionClient: Sendable {
     }
 }
 
-enum TCPConnectionClientError: Error, Equatable, LocalizedError {
+enum TCPConnectionClientError:
+    Error,
+    Equatable,
+    LocalizedError,
+    Sendable
+{
     case invalidPort
-    case timeout(seconds: Double)
+    case timeout(seconds: Double, origin: TCPTimeoutOrigin)
     case dnsFailure(message: String)
     case connectionRefused
     case unreachable
+    case unexpectedAddressFamily(
+        expected: TCPAddressFamily,
+        actual: TCPAddressFamily
+    )
     case missingIPOptions
     case missingRemoteEndpoint
     case network(message: String)
@@ -44,7 +53,7 @@ enum TCPConnectionClientError: Error, Equatable, LocalizedError {
         switch self {
         case .invalidPort:
             "端口无效。"
-        case .timeout(let seconds):
+        case .timeout(let seconds, _):
             "TCP 连接在 \(seconds.formatted()) 秒后超时。"
         case .dnsFailure(let message):
             "DNS 解析失败：\(message)"
@@ -52,12 +61,36 @@ enum TCPConnectionClientError: Error, Equatable, LocalizedError {
             "目标主机拒绝了 TCP 连接。"
         case .unreachable:
             "目标主机或网络不可达。"
+        case .unexpectedAddressFamily(let expected, let actual):
+            "实际建立了 \(actual.title) 连接，"
+                + "与所选的 \(expected.title) 地址族不一致。"
         case .missingIPOptions:
             "系统没有提供 TCP 连接所需的 IP 协议选项。"
         case .missingRemoteEndpoint:
             "连接已建立，但系统没有提供实际远端地址。"
         case .network(let message):
             "TCP 连接失败：\(message)"
+        }
+    }
+
+    var timeoutOriginDescription: String? {
+        guard case .timeout(_, let origin) = self else {
+            return nil
+        }
+        return origin.description
+    }
+}
+
+enum TCPTimeoutOrigin: Equatable, Sendable {
+    case appDeadline
+    case system
+
+    var description: String {
+        switch self {
+        case .appDeadline:
+            "App 连接截止时间"
+        case .system:
+            "Network.framework（POSIX ETIMEDOUT）"
         }
     }
 }
@@ -128,7 +161,8 @@ private final class TCPConnectionOperation: @unchecked Sendable {
             }
             finish(
                 throwing: TCPConnectionClientError.timeout(
-                    seconds: configuration.timeoutSeconds
+                    seconds: configuration.timeoutSeconds,
+                    origin: .appDeadline
                 )
             )
         }
@@ -197,6 +231,14 @@ private final class TCPConnectionOperation: @unchecked Sendable {
             throw TCPConnectionClientError.missingRemoteEndpoint
         }
 
+        if configuration.addressFamily != .automatic,
+           configuration.addressFamily != addressFamily {
+            throw TCPConnectionClientError.unexpectedAddressFamily(
+                expected: configuration.addressFamily,
+                actual: addressFamily
+            )
+        }
+
         let elapsed =
             DispatchTime.now().uptimeNanoseconds - startedAt
         return TCPConnectionResult(
@@ -220,7 +262,10 @@ private final class TCPConnectionOperation: @unchecked Sendable {
             case .ECONNREFUSED:
                 .connectionRefused
             case .ETIMEDOUT:
-                .timeout(seconds: configuration.timeoutSeconds)
+                .timeout(
+                    seconds: configuration.timeoutSeconds,
+                    origin: .system
+                )
             case .EHOSTUNREACH, .ENETUNREACH:
                 .unreachable
             default:

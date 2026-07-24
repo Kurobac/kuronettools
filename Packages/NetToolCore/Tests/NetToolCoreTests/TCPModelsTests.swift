@@ -46,6 +46,59 @@ struct TCPModelsTests {
         }
     }
 
+    @Test(
+        "Literal IP addresses must match the selected family",
+        arguments: [
+            TCPConnectionConfiguration(
+                host: "192.0.2.1",
+                addressFamily: .ipv6
+            ),
+            TCPConnectionConfiguration(
+                host: "2001:db8::1",
+                addressFamily: .ipv4
+            ),
+            TCPConnectionConfiguration(
+                host: "fe80::1%en0",
+                addressFamily: .ipv4
+            )
+        ]
+    )
+    func rejectsMismatchedLiteralAddressFamily(
+        _ configuration: TCPConnectionConfiguration
+    ) {
+        #expect(throws: TCPConfigurationError.self) {
+            try configuration.validated()
+        }
+    }
+
+    @Test(
+        "Matching, automatic, and hostname families remain valid",
+        arguments: [
+            TCPConnectionConfiguration(
+                host: "192.0.2.1",
+                addressFamily: .ipv4
+            ),
+            TCPConnectionConfiguration(
+                host: "2001:db8::1",
+                addressFamily: .ipv6
+            ),
+            TCPConnectionConfiguration(
+                host: "192.0.2.1",
+                addressFamily: .automatic
+            ),
+            TCPConnectionConfiguration(
+                host: "example.com",
+                addressFamily: .ipv6
+            )
+        ]
+    )
+    func acceptsCompatibleAddressFamily(
+        _ configuration: TCPConnectionConfiguration
+    ) throws {
+        let validated = try configuration.validated()
+        #expect(validated == configuration)
+    }
+
     @Test("Address families expose user-facing titles")
     func exposesAddressFamilyTitles() {
         #expect(TCPAddressFamily.automatic.title == "自动")

@@ -1,5 +1,13 @@
 import Foundation
 
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#else
+#error("TCP IP address validation requires Darwin or Glibc.")
+#endif
+
 public enum TCPAddressFamily:
     String,
     CaseIterable,
@@ -58,6 +66,17 @@ public struct TCPConnectionConfiguration: Equatable, Sendable {
               (0.1 ... 30).contains(timeoutSeconds) else {
             throw TCPConfigurationError.invalidTimeout
         }
+        if addressFamily != .automatic,
+           let literalFamily = Self.literalAddressFamily(
+               of: trimmedHost
+           ),
+           literalFamily != addressFamily {
+            throw TCPConfigurationError.addressFamilyMismatch(
+                address: trimmedHost,
+                actual: literalFamily,
+                selected: addressFamily
+            )
+        }
 
         return TCPConnectionConfiguration(
             host: trimmedHost,
@@ -66,12 +85,42 @@ public struct TCPConnectionConfiguration: Equatable, Sendable {
             timeoutSeconds: timeoutSeconds
         )
     }
+
+    private static func literalAddressFamily(
+        of address: String
+    ) -> TCPAddressFamily? {
+        var ipv4 = in_addr()
+        if address.withCString({
+            inet_pton(AF_INET, $0, &ipv4)
+        }) == 1 {
+            return .ipv4
+        }
+
+        let unscopedAddress = address.split(
+            separator: "%",
+            maxSplits: 1,
+            omittingEmptySubsequences: false
+        ).first.map(String.init) ?? address
+        var ipv6 = in6_addr()
+        if unscopedAddress.withCString({
+            inet_pton(AF_INET6, $0, &ipv6)
+        }) == 1 {
+            return .ipv6
+        }
+
+        return nil
+    }
 }
 
 public enum TCPConfigurationError: Error, Equatable, LocalizedError {
     case emptyHost
     case invalidPort
     case invalidTimeout
+    case addressFamilyMismatch(
+        address: String,
+        actual: TCPAddressFamily,
+        selected: TCPAddressFamily
+    )
 
     public var errorDescription: String? {
         switch self {
@@ -81,6 +130,13 @@ public enum TCPConfigurationError: Error, Equatable, LocalizedError {
             "端口必须在 1 到 65535 之间。"
         case .invalidTimeout:
             "超时时间必须在 0.1 到 30 秒之间。"
+        case .addressFamilyMismatch(
+            let address,
+            let actual,
+            let selected
+        ):
+            "\(address) 是 \(actual.title) 地址，"
+                + "与所选的 \(selected.title) 地址族不一致。"
         }
     }
 }
