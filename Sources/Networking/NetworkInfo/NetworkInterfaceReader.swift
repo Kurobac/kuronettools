@@ -99,11 +99,12 @@ struct NetworkInterfaceReader: Sendable {
                     flags & UInt32(IFF_BROADCAST) != 0
             )
         let destinationAddress = record.ifa_dstaddr
-        let relatedAddress =
-            relatedAddressKind != nil
-                && UInt(bitPattern: destinationAddress) != 0
-                ? numericAddress(destinationAddress)
-                : nil
+        let relatedAddress: String?
+        if relatedAddressKind != nil, let destinationAddress {
+            relatedAddress = numericAddress(destinationAddress)
+        } else {
+            relatedAddress = nil
+        }
 
         return NetworkInterfaceAddress(
             family: addressFamily,
