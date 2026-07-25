@@ -81,7 +81,8 @@ public enum ToolCatalog {
             title: "端口扫描",
             summary: "TCP Connect Scan",
             systemImage: "square.grid.3x3.square",
-            category: .diagnostics
+            category: .diagnostics,
+            availability: .available
         ),
         ToolDescriptor(
             id: "dns",

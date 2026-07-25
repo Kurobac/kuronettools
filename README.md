@@ -5,7 +5,7 @@ NetTool 是一个面向 iPhone 和 iPad 的个人网络诊断工具箱。项目�
 
 ## 当前状态
 
-Step 4A 已包含：
+Step 4B 已包含：
 
 - iOS 26 SwiftUI 应用骨架；
 - 可选择 IPv4、IPv6 或自动解析的 Ping；
@@ -22,6 +22,9 @@ Step 4A 已包含：
 - TCP Connect，可选择自动、IPv4 或 IPv6；
 - TCP 目标、端口和超时设置，以及常用目标与端口预置；
 - TCP 实际远端地址、连接耗时与失败原因分类；
+- TCP Connect 端口扫描，支持单端口、范围与混合表达式；
+- 可调整单端口超时和并发数，并统计开放、关闭、超时、不可达与失败端口；
+- 扫描结果仅保留开放端口明细，包含实际远端地址与连接耗时；
 - TLS 直连检查，可设置 SNI、IPv4/IPv6、超时、端口和 ALPN；
 - 默认使用系统信任链校验，并可显式允许不受信任的证书继续握手；
 - TLS 版本、密码套件、ALPN、握手耗时、信任状态和实际远端地址；
@@ -31,13 +34,13 @@ Step 4A 已包含：
 - HTTP 状态、协议、完整响应头、重定向链与 curl 风格文本导出；
 - HTTP DNS、TCP、TLS、首字节和总耗时，以及本地/远端地址和连接属性；
 - HTTPS 默认使用系统信任链，也可按次允许不受信任证书；
-- 端口扫描和网络信息入口；
+- 网络信息入口；
 - 应用版本与运行环境页面；
 - 独立的 `NetToolCore` Swift Package 与基础测试；
 - GitHub Actions 无签名 IPA 构建。
 
-除 Ping、Traceroute、DNS、TCP 连接、TLS 检查和 HTTP 信息外的网络工具目前
-显示“规划中”，会在后续步骤逐项实现。
+除 Ping、Traceroute、端口扫描、DNS、TCP 连接、TLS 检查和 HTTP 信息外的
+网络工具目前显示“规划中”，会在后续步骤逐项实现。
 
 UDP 查询直接向指定服务器发送数据报；TCP 与 DoT 使用两字节长度前缀承载 DNS
 报文；DoH 仅接受 HTTPS 与 `application/dns-message`。DoT 使用系统信任链严格
@@ -127,7 +130,7 @@ bash scripts/build_unsigned_ipa.sh
 1. Ping（已完成）
 2. DNS（UDP、TCP、DoT、DoH 已完成）
 3. TCP、TLS 与 HTTP（已完成）
-4. Traceroute（已完成）与 TCP 端口扫描
+4. Traceroute 与 TCP 端口扫描（已完成）
 5. 接口、地址、路由和 Resolver 信息
 
 ## 开源致谢

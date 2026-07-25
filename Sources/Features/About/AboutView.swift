@@ -30,9 +30,9 @@ struct AboutView: View {
             }
 
             Section("当前阶段") {
-                LabeledContent("里程碑", value: "Step 4A")
+                LabeledContent("里程碑", value: "Step 4B")
                 Text(
-                    "Ping、Traceroute、UDP/TCP/DoT/DoH DNS、"
+                    "Ping、Traceroute、TCP 端口扫描、UDP/TCP/DoT/DoH DNS、"
                         + "TCP 连接测试、TLS 检查与 HTTP HEAD 信息已可用。"
                 )
                     .foregroundStyle(.secondary)

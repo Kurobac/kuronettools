@@ -68,4 +68,13 @@ struct ToolCatalogTests {
 
         #expect(traceroute.availability == .available)
     }
+
+    @Test("TCP port scan is available in Step 4B")
+    func portScanIsAvailable() throws {
+        let portScan = try #require(
+            ToolCatalog.all.first { $0.id == "port-scan" }
+        )
+
+        #expect(portScan.availability == .available)
+    }
 }
