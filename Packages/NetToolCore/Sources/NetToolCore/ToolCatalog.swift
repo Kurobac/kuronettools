@@ -111,9 +111,10 @@ public enum ToolCatalog {
         ToolDescriptor(
             id: "network-info",
             title: "网络信息",
-            summary: "接口、地址、路由与 Resolver",
+            summary: "路径、接口、网关与 Neighbor",
             systemImage: "wifi",
-            category: .network
+            category: .network,
+            availability: .available
         )
     ]
 

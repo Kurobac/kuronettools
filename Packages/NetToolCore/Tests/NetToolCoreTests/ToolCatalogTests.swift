@@ -77,4 +77,13 @@ struct ToolCatalogTests {
 
         #expect(portScan.availability == .available)
     }
+
+    @Test("Network information is available in Step 5A")
+    func networkInfoIsAvailable() throws {
+        let networkInfo = try #require(
+            ToolCatalog.all.first { $0.id == "network-info" }
+        )
+
+        #expect(networkInfo.availability == .available)
+    }
 }

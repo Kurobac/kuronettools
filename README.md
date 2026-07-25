@@ -5,7 +5,7 @@ NetTool 是一个面向 iPhone 和 iPad 的个人网络诊断工具箱。项目�
 
 ## 当前状态
 
-Step 4B 已包含：
+Step 5A 已包含：
 
 - iOS 26 SwiftUI 应用骨架；
 - 可选择 IPv4、IPv6 或自动解析的 Ping；
@@ -39,13 +39,17 @@ Step 4B 已包含：
 - HTTP 状态、协议、完整响应头、重定向链与 curl 风格文本导出；
 - HTTP DNS、TCP、TLS、首字节和总耗时，以及本地/远端地址和连接属性；
 - HTTPS 默认使用系统信任链，也可按次允许不受信任证书；
-- 网络信息入口；
+- 当前路径状态、可用接口、IPv4/IPv6/DNS 支持、链路质量与网关；
+- 接口名称、类型、索引、标志、MTU、链路地址和流量统计；
+- 接口 IPv4/IPv6 地址、前缀、广播或点对点地址以及地址分类；
+- IPv4 ARP 与 IPv6 NDP Neighbor 缓存的只读快照；
+- 网络信息文本报告导出，并明确区分空缓存与底层读取错误；
 - 应用版本与运行环境页面；
 - 独立的 `NetToolCore` Swift Package 与基础测试；
 - GitHub Actions 无签名 IPA 构建。
 
-除 Ping、Traceroute、端口扫描、DNS、TCP 连接、TLS 检查和 HTTP 信息外的
-网络工具目前显示“规划中”，会在后续步骤逐项实现。
+除 Ping、Traceroute、端口扫描、DNS、TCP 连接、TLS 检查、HTTP 信息和当前
+网络信息外的网络工具会在后续步骤逐项实现。
 
 UDP 查询直接向指定服务器发送数据报；TCP 与 DoT 使用两字节长度前缀承载 DNS
 报文；DoH 仅接受 HTTPS 与 `application/dns-message`。DoT 使用系统信任链严格
@@ -136,7 +140,9 @@ bash scripts/build_unsigned_ipa.sh
 2. DNS（UDP、TCP、DoT、DoH 已完成）
 3. TCP、TLS 与 HTTP（已完成）
 4. Traceroute 与 TCP 端口扫描（已完成）
-5. 接口、地址、路由和 Resolver 信息
+5. 当前网络
+   - 路径、接口、地址、网关与 Neighbor 缓存（已完成）
+   - 完整路由与 IPv6 RA 内核状态（待真机验证后继续）
 
 ## 开源致谢
 
@@ -152,3 +158,8 @@ App/系统超时来源。项目没有复制或链接 Nmap 源码。
 
 证书字段解析使用 Apache 2.0 许可的
 [swift-certificates 1.19.3](https://github.com/apple/swift-certificates/tree/1.19.3)。
+
+Neighbor 缓存读取方式参考 Apple 开源的
+[network_cmds/ndp](https://github.com/apple-oss-distributions/network_cmds/blob/main/ndp.tproj/ndp.c)
+和 XNU 路由消息 ABI。应用只读取 `PF_ROUTE` 的 `RTF_LLINFO` 快照，不会为了
+填充列表而主动探测局域网。
