@@ -116,9 +116,9 @@ public struct TCPPortScanConfiguration: Equatable, Sendable {
         host: String,
         ports: [Int],
         addressFamily: TCPAddressFamily = .automatic,
-        timeoutSeconds: Double = 1,
+        timeoutSeconds: Double = 2,
         maxConcurrency: Int = 32,
-        maxRetries: Int = 1
+        maxRetries: Int = 2
     ) {
         self.host = host
         self.ports = ports
@@ -252,15 +252,18 @@ public struct TCPPortScanSummary: Equatable, Sendable {
 
 public struct TCPPortScanTimingSnapshot: Equatable, Sendable {
     public let currentParallelism: Int
+    public let peakParallelism: Int
     public let maxParallelism: Int
     public let retryAttempts: Int
 
     public init(
         currentParallelism: Int,
+        peakParallelism: Int,
         maxParallelism: Int,
         retryAttempts: Int
     ) {
         self.currentParallelism = currentParallelism
+        self.peakParallelism = peakParallelism
         self.maxParallelism = maxParallelism
         self.retryAttempts = retryAttempts
     }
@@ -271,6 +274,7 @@ public struct TCPPortScanTimingController: Equatable, Sendable {
     private let maximumWindow: Double
     private var congestionWindow: Double
     private var slowStartThreshold: Double
+    private var peakParallelism: Int
     private var retryAttempts = 0
 
     public init(maxParallelism: Int) {
@@ -280,17 +284,13 @@ public struct TCPPortScanTimingController: Equatable, Sendable {
         maximumWindow = maximum
         congestionWindow = min(8, maximum)
         slowStartThreshold = maximum
+        peakParallelism = Int(congestionWindow)
     }
 
     public var snapshot: TCPPortScanTimingSnapshot {
         TCPPortScanTimingSnapshot(
-            currentParallelism: max(
-                1,
-                min(
-                    Int(congestionWindow.rounded(.down)),
-                    Int(maximumWindow)
-                )
-            ),
+            currentParallelism: currentParallelism,
+            peakParallelism: peakParallelism,
             maxParallelism: Int(maximumWindow),
             retryAttempts: retryAttempts
         )
@@ -306,9 +306,13 @@ public struct TCPPortScanTimingController: Equatable, Sendable {
             congestionWindow,
             maximumWindow
         )
+        peakParallelism = max(
+            peakParallelism,
+            currentParallelism
+        )
     }
 
-    public mutating func recordTimeout() {
+    public mutating func recordPathTimeout() {
         let reducedWindow = max(
             minimumWindow,
             (congestionWindow / 2).rounded(.down)
@@ -317,8 +321,19 @@ public struct TCPPortScanTimingController: Equatable, Sendable {
         congestionWindow = reducedWindow
     }
 
-    public mutating func recordRetry() {
-        retryAttempts += 1
+    public mutating func recordRetries(_ count: Int) {
+        precondition(count >= 0)
+        retryAttempts += count
+    }
+
+    private var currentParallelism: Int {
+        max(
+            1,
+            min(
+                Int(congestionWindow.rounded(.down)),
+                Int(maximumWindow)
+            )
+        )
     }
 }
 
@@ -340,9 +355,12 @@ public enum TCPPortScanEvent: Equatable, Sendable {
         totalPorts: Int,
         timing: TCPPortScanTimingSnapshot
     )
-    case retryScheduled(
-        port: Int,
+    case pathProbeStarted(
+        timing: TCPPortScanTimingSnapshot
+    )
+    case retryRoundStarted(
         retryNumber: Int,
+        portCount: Int,
         timing: TCPPortScanTimingSnapshot
     )
     case result(

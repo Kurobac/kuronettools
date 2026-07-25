@@ -61,6 +61,18 @@ struct TCPPortScanModelsTests {
         #expect(configuration.maxRetries == 2)
     }
 
+    @Test("Scan defaults favor reliable connect results")
+    func scanDefaults() throws {
+        let configuration = try TCPPortScanConfiguration(
+            host: "example.com",
+            ports: [443]
+        ).validated()
+
+        #expect(configuration.timeoutSeconds == 2)
+        #expect(configuration.maxConcurrency == 32)
+        #expect(configuration.maxRetries == 2)
+    }
+
     @Test(
         "Invalid scan configuration is rejected",
         arguments: [
@@ -148,9 +160,10 @@ struct TCPPortScanModelsTests {
             timing.recordResponsiveResult()
         }
         #expect(timing.snapshot.currentParallelism == 32)
+        #expect(timing.snapshot.peakParallelism == 32)
     }
 
-    @Test("Timeouts halve the window without dropping below four")
+    @Test("Path probe timeouts halve the window without dropping below four")
     func timingControllerBacksOff() {
         var timing = TCPPortScanTimingController(
             maxParallelism: 32
@@ -159,13 +172,14 @@ struct TCPPortScanModelsTests {
             timing.recordResponsiveResult()
         }
 
-        timing.recordTimeout()
+        timing.recordPathTimeout()
         #expect(timing.snapshot.currentParallelism == 16)
-        timing.recordTimeout()
+        timing.recordPathTimeout()
         #expect(timing.snapshot.currentParallelism == 8)
-        timing.recordTimeout()
+        timing.recordPathTimeout()
         #expect(timing.snapshot.currentParallelism == 4)
-        timing.recordTimeout()
+        #expect(timing.snapshot.peakParallelism == 32)
+        timing.recordPathTimeout()
         #expect(timing.snapshot.currentParallelism == 4)
     }
 
@@ -178,7 +192,7 @@ struct TCPPortScanModelsTests {
         #expect(timing.snapshot.currentParallelism == 3)
         timing.recordResponsiveResult()
         #expect(timing.snapshot.currentParallelism == 3)
-        timing.recordTimeout()
+        timing.recordPathTimeout()
         #expect(timing.snapshot.currentParallelism == 3)
     }
 
@@ -213,8 +227,7 @@ struct TCPPortScanModelsTests {
             maxParallelism: 32
         )
 
-        timing.recordRetry()
-        timing.recordRetry()
+        timing.recordRetries(2)
 
         #expect(timing.snapshot.retryAttempts == 2)
     }

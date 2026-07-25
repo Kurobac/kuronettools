@@ -113,12 +113,16 @@ struct PortScanView: View {
 
                     if let timing = model.timing {
                         LabeledContent(
-                            "并发窗口",
-                            value: String(
-                                timing.currentParallelism
-                            ) + " / " + String(
-                                timing.maxParallelism
-                            )
+                            "当前并发",
+                            value: String(timing.currentParallelism)
+                        )
+                        LabeledContent(
+                            "峰值并发",
+                            value: String(timing.peakParallelism)
+                        )
+                        LabeledContent(
+                            "最大并发",
+                            value: String(timing.maxParallelism)
                         )
                         LabeledContent(
                             "重试尝试",

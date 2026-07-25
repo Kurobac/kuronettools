@@ -8,9 +8,9 @@ final class PortScanViewModel {
     var host = "1.1.1.1"
     var portExpression = "22,53,80,443,853,8080,8443"
     var addressFamily = TCPAddressFamily.automatic
-    var timeoutSeconds = 1.0
+    var timeoutSeconds = 2.0
     var maxConcurrency = 32
-    var maxRetries = 1
+    var maxRetries = 2
 
     private(set) var summary: TCPPortScanSummary?
     private(set) var timing: TCPPortScanTimingSnapshot?
@@ -20,6 +20,7 @@ final class PortScanViewModel {
     private(set) var isRunning = false
     private(set) var isStopping = false
     private(set) var didComplete = false
+    private(set) var retryRound = 0
 
     @ObservationIgnored
     private let client = TCPPortScanClient()
@@ -157,6 +158,10 @@ final class PortScanViewModel {
                     + "\(timing.currentParallelism)"
             )
             lines.append(
+                "Peak concurrency window: "
+                    + "\(timing.peakParallelism)"
+            )
+            lines.append(
                 "Retry attempts: \(timing.retryAttempts)"
             )
         }
@@ -196,9 +201,19 @@ final class PortScanViewModel {
             summary = TCPPortScanSummary(total: totalPorts)
             self.timing = timing
             updateRunningStatus()
-        case .retryScheduled(_, _, let timing):
+        case .pathProbeStarted(let timing):
             self.timing = timing
-            updateRunningStatus()
+            statusMessage = "正在检查路径状态…"
+        case .retryRoundStarted(
+            let retryNumber,
+            let portCount,
+            let timing
+        ):
+            self.timing = timing
+            retryRound = retryNumber
+            statusMessage = "500ms 后进行第 "
+                + "\(retryNumber) 轮重试"
+                + "（\(portCount) 个端口）…"
         case .result(let result, let timing):
             guard var updatedSummary = summary else {
                 return
@@ -225,7 +240,8 @@ final class PortScanViewModel {
                     level: .info,
                     message: "TCP 端口扫描完成："
                         + "\(summary.scanned) 个端口，"
-                        + "\(summary.open) 个开放"
+                        + "\(summary.open) 个开放，"
+                        + "\(timing?.retryAttempts ?? 0) 次重试"
                 )
             }
         }
@@ -238,6 +254,7 @@ final class PortScanViewModel {
         errorMessage = nil
         statusMessage = nil
         didComplete = false
+        retryRound = 0
         activeConfiguration = nil
         activePortExpression = nil
     }
@@ -247,8 +264,13 @@ final class PortScanViewModel {
             statusMessage = "正在准备扫描…"
             return
         }
-        statusMessage = "正在扫描 "
-            + "\(summary.scanned) / \(summary.total)…"
+        if retryRound > 0 {
+            statusMessage = "正在进行第 \(retryRound) 轮重试 · "
+                + "\(summary.scanned) / \(summary.total)…"
+        } else {
+            statusMessage = "正在扫描 "
+                + "\(summary.scanned) / \(summary.total)…"
+        }
     }
 
     private func format(_ value: Double) -> String {
