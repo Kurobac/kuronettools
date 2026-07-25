@@ -325,7 +325,7 @@ struct DarwinNeighborCacheReader: Sendable {
         guard result == 0 else {
             return nil
         }
-        return String(cString: host)
+        return decodedCString(host)
     }
 
     private func linkInformation(
@@ -379,7 +379,7 @@ struct DarwinNeighborCacheReader: Sendable {
         guard result != nil else {
             return "if\(index)"
         }
-        return String(cString: buffer)
+        return decodedCString(buffer)
     }
 
     private func scopedAddress(
@@ -416,6 +416,13 @@ struct DarwinNeighborCacheReader: Sendable {
             return 4
         }
         return (length + 3) & ~3
+    }
+
+    private func decodedCString(_ buffer: [CChar]) -> String {
+        let bytes = buffer
+            .prefix { $0 != 0 }
+            .map { UInt8(bitPattern: $0) }
+        return String(decoding: bytes, as: UTF8.self)
     }
 
     private func readUInt16(

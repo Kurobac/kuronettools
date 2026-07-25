@@ -89,7 +89,12 @@ struct NetworkInterfaceReader: Sendable {
 
         let isPointToPoint =
             UInt32(record.ifa_flags) & UInt32(IFF_POINTOPOINT) != 0
-        let relatedAddress = record.ifa_dstaddr.flatMap(numericAddress)
+        let hasRelatedAddress =
+            isPointToPoint
+            || UInt32(record.ifa_flags) & UInt32(IFF_BROADCAST) != 0
+        let relatedAddress = hasRelatedAddress
+            ? numericAddress(record.ifa_dstaddr)
+            : nil
 
         return NetworkInterfaceAddress(
             family: family == AF_INET ? .ipv4 : .ipv6,
@@ -130,7 +135,7 @@ struct NetworkInterfaceReader: Sendable {
         guard result == 0 else {
             return nil
         }
-        return String(cString: host)
+        return decodedCString(host)
     }
 
     private func prefixLength(
@@ -242,6 +247,13 @@ struct NetworkInterfaceReader: Sendable {
             return false
         }
         return (16 ... 31).contains(second)
+    }
+
+    private func decodedCString(_ buffer: [CChar]) -> String {
+        let bytes = buffer
+            .prefix { $0 != 0 }
+            .map { UInt8(bitPattern: $0) }
+        return String(decoding: bytes, as: UTF8.self)
     }
 
     private func interfaceSort(

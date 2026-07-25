@@ -74,7 +74,7 @@ final class NetworkPathObserver: @unchecked Sendable {
             return nil
         }
 
-        switch path.unsatisfiedReason {
+        return switch path.unsatisfiedReason {
         case .cellularDenied:
             "蜂窝网络被禁用"
         case .wifiDenied:
