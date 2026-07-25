@@ -45,9 +45,15 @@ struct PortScanView: View {
                 }
 
                 Stepper(
-                    "并发连接：\(model.concurrency)",
-                    value: $model.concurrency,
+                    "最大并发：\(model.maxConcurrency)",
+                    value: $model.maxConcurrency,
                     in: 1 ... 128
+                )
+
+                Stepper(
+                    "超时重试：\(model.maxRetries) 次",
+                    value: $model.maxRetries,
+                    in: 0 ... 2
                 )
             }
             .disabled(model.isRunning)
@@ -104,6 +110,21 @@ struct PortScanView: View {
                         "失败",
                         value: String(summary.failed)
                     )
+
+                    if let timing = model.timing {
+                        LabeledContent(
+                            "并发窗口",
+                            value: String(
+                                timing.currentParallelism
+                            ) + " / " + String(
+                                timing.maxParallelism
+                            )
+                        )
+                        LabeledContent(
+                            "重试尝试",
+                            value: String(timing.retryAttempts)
+                        )
+                    }
                 }
             }
 
@@ -226,7 +247,9 @@ private struct OpenPortRow: View {
         ) = result.outcome {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text("\(result.port)/tcp")
+                    Text(
+                        verbatim: String(result.port) + "/tcp"
+                    )
                         .font(.body.weight(.medium).monospacedDigit())
 
                     Spacer()

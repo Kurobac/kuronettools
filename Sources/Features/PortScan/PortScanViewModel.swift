@@ -9,9 +9,11 @@ final class PortScanViewModel {
     var portExpression = "22,53,80,443,853,8080,8443"
     var addressFamily = TCPAddressFamily.automatic
     var timeoutSeconds = 1.0
-    var concurrency = 32
+    var maxConcurrency = 32
+    var maxRetries = 1
 
     private(set) var summary: TCPPortScanSummary?
+    private(set) var timing: TCPPortScanTimingSnapshot?
     private(set) var openResults: [TCPPortScanResult] = []
     private(set) var errorMessage: String?
     private(set) var statusMessage: String?
@@ -52,7 +54,8 @@ final class PortScanViewModel {
                 ports: ports,
                 addressFamily: addressFamily,
                 timeoutSeconds: timeoutSeconds,
-                concurrency: concurrency
+                maxConcurrency: maxConcurrency,
+                maxRetries: maxRetries
             ).validated()
         } catch {
             errorMessage = error.localizedDescription
@@ -73,7 +76,8 @@ final class PortScanViewModel {
             message: "开始 TCP 端口扫描："
                 + "\(configuration.host)，"
                 + "\(configuration.ports.count) 个端口，"
-                + "并发 \(configuration.concurrency)"
+                + "最大并发 \(configuration.maxConcurrency)，"
+                + "超时重试 \(configuration.maxRetries) 次"
         )
 
         let client = client
@@ -132,7 +136,8 @@ final class PortScanViewModel {
             "Ports: \(activePortExpression ?? "")",
             "Address family: \(configuration.addressFamily.title)",
             "Timeout: \(format(configuration.timeoutSeconds)) s",
-            "Concurrency: \(configuration.concurrency)"
+            "Maximum concurrency: \(configuration.maxConcurrency)",
+            "Timeout retries: \(configuration.maxRetries)"
         ]
 
         if let summary {
@@ -145,6 +150,15 @@ final class PortScanViewModel {
             lines.append("Timed out: \(summary.timedOut)")
             lines.append("Unreachable: \(summary.unreachable)")
             lines.append("Failed: \(summary.failed)")
+        }
+        if let timing {
+            lines.append(
+                "Final concurrency window: "
+                    + "\(timing.currentParallelism)"
+            )
+            lines.append(
+                "Retry attempts: \(timing.retryAttempts)"
+            )
         }
 
         if !openResults.isEmpty {
@@ -178,21 +192,24 @@ final class PortScanViewModel {
         logStore: AppLogStore
     ) {
         switch event {
-        case .started(let totalPorts):
+        case .started(let totalPorts, let timing):
             summary = TCPPortScanSummary(total: totalPorts)
-            statusMessage = "正在扫描 0 / \(totalPorts)…"
-        case .result(let result):
+            self.timing = timing
+            updateRunningStatus()
+        case .retryScheduled(_, _, let timing):
+            self.timing = timing
+            updateRunningStatus()
+        case .result(let result, let timing):
             guard var updatedSummary = summary else {
                 return
             }
             updatedSummary.record(result)
             summary = updatedSummary
+            self.timing = timing
             if case .open = result.outcome {
                 openResults.append(result)
             }
-            statusMessage = "正在扫描 "
-                + "\(updatedSummary.scanned) / "
-                + "\(updatedSummary.total)…"
+            updateRunningStatus()
         case .failed(let message):
             errorMessage = message
             statusMessage = "失败"
@@ -216,12 +233,22 @@ final class PortScanViewModel {
 
     private func resetResults() {
         summary = nil
+        timing = nil
         openResults = []
         errorMessage = nil
         statusMessage = nil
         didComplete = false
         activeConfiguration = nil
         activePortExpression = nil
+    }
+
+    private func updateRunningStatus() {
+        guard let summary else {
+            statusMessage = "正在准备扫描…"
+            return
+        }
+        statusMessage = "正在扫描 "
+            + "\(summary.scanned) / \(summary.total)…"
     }
 
     private func format(_ value: Double) -> String {

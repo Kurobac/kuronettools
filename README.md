@@ -23,7 +23,9 @@ Step 4B 已包含：
 - TCP 目标、端口和超时设置，以及常用目标与端口预置；
 - TCP 实际远端地址、连接耗时与失败原因分类；
 - TCP Connect 端口扫描，支持单端口、范围与混合表达式；
-- 可调整单端口超时和并发数，并统计开放、关闭、超时、不可达与失败端口；
+- 可调整单端口超时、最大并发和超时重试次数；
+- 扫描使用慢启动并发窗口，明确响应时增长，超时时减半退让；
+- 扫描统计开放、关闭、超时、不可达与失败端口，以及实际重试次数；
 - 扫描结果仅保留开放端口明细，包含实际远端地址与连接耗时；
 - TLS 直连检查，可设置 SNI、IPv4/IPv6、超时、端口和 ALPN；
 - 默认使用系统信任链校验，并可显式允许不受信任的证书继续握手；
@@ -138,6 +140,9 @@ bash scripts/build_unsigned_ipa.sh
 Ping 与 Traceroute 的 Darwin socket 实现借鉴了 MIT 许可的
 [NetDiagnosis](https://github.com/453jerry/NetDiagnosis)。项目保留了对应的许可证文本：
 `Vendor/Licenses/NetDiagnosis-MIT.txt`。
+
+TCP 端口扫描的动态并发窗口与有限重试策略参考了 Nmap 公开说明的慢启动、
+拥塞退让和自适应重传思路；项目没有复制或链接 Nmap 源码。
 
 证书字段解析使用 Apache 2.0 许可的
 [swift-certificates 1.19.3](https://github.com/apple/swift-certificates/tree/1.19.3)。

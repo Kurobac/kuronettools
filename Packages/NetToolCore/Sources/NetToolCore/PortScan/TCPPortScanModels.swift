@@ -109,20 +109,23 @@ public struct TCPPortScanConfiguration: Equatable, Sendable {
     public let ports: [Int]
     public let addressFamily: TCPAddressFamily
     public let timeoutSeconds: Double
-    public let concurrency: Int
+    public let maxConcurrency: Int
+    public let maxRetries: Int
 
     public init(
         host: String,
         ports: [Int],
         addressFamily: TCPAddressFamily = .automatic,
         timeoutSeconds: Double = 1,
-        concurrency: Int = 32
+        maxConcurrency: Int = 32,
+        maxRetries: Int = 1
     ) {
         self.host = host
         self.ports = ports
         self.addressFamily = addressFamily
         self.timeoutSeconds = timeoutSeconds
-        self.concurrency = concurrency
+        self.maxConcurrency = maxConcurrency
+        self.maxRetries = maxRetries
     }
 
     public func validated() throws -> TCPPortScanConfiguration {
@@ -134,8 +137,11 @@ public struct TCPPortScanConfiguration: Equatable, Sendable {
         }) else {
             throw TCPPortScanConfigurationError.invalidPort
         }
-        guard (1 ... 128).contains(concurrency) else {
+        guard (1 ... 128).contains(maxConcurrency) else {
             throw TCPPortScanConfigurationError.invalidConcurrency
+        }
+        guard (0 ... 2).contains(maxRetries) else {
+            throw TCPPortScanConfigurationError.invalidRetryLimit
         }
 
         let normalizedPorts = Array(Set(ports)).sorted()
@@ -151,7 +157,8 @@ public struct TCPPortScanConfiguration: Equatable, Sendable {
             ports: normalizedPorts,
             addressFamily: tcpConfiguration.addressFamily,
             timeoutSeconds: tcpConfiguration.timeoutSeconds,
-            concurrency: concurrency
+            maxConcurrency: maxConcurrency,
+            maxRetries: maxRetries
         )
     }
 }
@@ -164,6 +171,7 @@ public enum TCPPortScanConfigurationError:
     case emptyPorts
     case invalidPort
     case invalidConcurrency
+    case invalidRetryLimit
 
     public var errorDescription: String? {
         switch self {
@@ -172,7 +180,9 @@ public enum TCPPortScanConfigurationError:
         case .invalidPort:
             "所有端口都必须在 1 到 65535 范围内。"
         case .invalidConcurrency:
-            "并发连接数必须在 1 到 128 之间。"
+            "最大并发连接数必须在 1 到 128 之间。"
+        case .invalidRetryLimit:
+            "超时重试次数必须在 0 到 2 之间。"
         }
     }
 }
@@ -240,9 +250,105 @@ public struct TCPPortScanSummary: Equatable, Sendable {
     }
 }
 
+public struct TCPPortScanTimingSnapshot: Equatable, Sendable {
+    public let currentParallelism: Int
+    public let maxParallelism: Int
+    public let retryAttempts: Int
+
+    public init(
+        currentParallelism: Int,
+        maxParallelism: Int,
+        retryAttempts: Int
+    ) {
+        self.currentParallelism = currentParallelism
+        self.maxParallelism = maxParallelism
+        self.retryAttempts = retryAttempts
+    }
+}
+
+public struct TCPPortScanTimingController: Equatable, Sendable {
+    private let minimumWindow: Double
+    private let maximumWindow: Double
+    private var congestionWindow: Double
+    private var slowStartThreshold: Double
+    private var retryAttempts = 0
+
+    public init(maxParallelism: Int) {
+        precondition(maxParallelism > 0)
+        let maximum = Double(maxParallelism)
+        minimumWindow = min(4, maximum)
+        maximumWindow = maximum
+        congestionWindow = min(8, maximum)
+        slowStartThreshold = maximum
+    }
+
+    public var snapshot: TCPPortScanTimingSnapshot {
+        TCPPortScanTimingSnapshot(
+            currentParallelism: max(
+                1,
+                min(
+                    Int(congestionWindow.rounded(.down)),
+                    Int(maximumWindow)
+                )
+            ),
+            maxParallelism: Int(maximumWindow),
+            retryAttempts: retryAttempts
+        )
+    }
+
+    public mutating func recordResponsiveResult() {
+        if congestionWindow < slowStartThreshold {
+            congestionWindow += 1
+        } else {
+            congestionWindow += 1 / congestionWindow
+        }
+        congestionWindow = min(
+            congestionWindow,
+            maximumWindow
+        )
+    }
+
+    public mutating func recordTimeout() {
+        let reducedWindow = max(
+            minimumWindow,
+            (congestionWindow / 2).rounded(.down)
+        )
+        slowStartThreshold = reducedWindow
+        congestionWindow = reducedWindow
+    }
+
+    public mutating func recordRetry() {
+        retryAttempts += 1
+    }
+}
+
+public enum TCPPortScanRetryPolicy {
+    public static func shouldRetry(
+        outcome: TCPPortScanOutcome,
+        completedRetries: Int,
+        maxRetries: Int
+    ) -> Bool {
+        guard case .timedOut = outcome else {
+            return false
+        }
+        return completedRetries < maxRetries
+    }
+}
+
 public enum TCPPortScanEvent: Equatable, Sendable {
-    case started(totalPorts: Int)
-    case result(TCPPortScanResult)
+    case started(
+        totalPorts: Int,
+        timing: TCPPortScanTimingSnapshot
+    )
+    case retryScheduled(
+        port: Int,
+        retryNumber: Int,
+        timing: TCPPortScanTimingSnapshot
+    )
+    case result(
+        TCPPortScanResult,
+        timing: TCPPortScanTimingSnapshot
+    )
     case failed(message: String)
     case completed
 }

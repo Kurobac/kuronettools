@@ -29,40 +29,83 @@ struct TCPPortScanClient: Sendable {
     ) async {
         do {
             let configuration = try configuration.validated()
+            var timing = TCPPortScanTimingController(
+                maxParallelism: configuration.maxConcurrency
+            )
             continuation.yield(
-                .started(totalPorts: configuration.ports.count)
+                .started(
+                    totalPorts: configuration.ports.count,
+                    timing: timing.snapshot
+                )
             )
 
-            var portIterator = configuration.ports.makeIterator()
+            var workQueue = TCPPortScanWorkQueue(
+                ports: configuration.ports
+            )
+            var activeAttempts = 0
             try await withThrowingTaskGroup(
-                of: TCPPortScanResult.self
+                of: TCPPortScanAttemptResult.self
             ) { group in
-                for _ in 0 ..< min(
-                    configuration.concurrency,
-                    configuration.ports.count
-                ) {
-                    guard let port = portIterator.next() else {
-                        break
-                    }
-                    group.addTask {
-                        try await scan(
-                            port: port,
-                            configuration: configuration
-                        )
-                    }
-                }
-
-                while let result = try await group.next() {
-                    try Task.checkCancellation()
-                    continuation.yield(.result(result))
-
-                    if let port = portIterator.next() {
+                while true {
+                    while activeAttempts
+                            < timing.snapshot.currentParallelism,
+                          let attempt = workQueue.next() {
+                        activeAttempts += 1
                         group.addTask {
                             try await scan(
-                                port: port,
+                                attempt: attempt,
                                 configuration: configuration
                             )
                         }
+                    }
+
+                    guard activeAttempts > 0,
+                          let attemptResult = try await group.next()
+                    else {
+                        break
+                    }
+                    activeAttempts -= 1
+                    try Task.checkCancellation()
+
+                    let result = attemptResult.result
+                    switch result.outcome {
+                    case .open, .closed:
+                        timing.recordResponsiveResult()
+                    case .timedOut:
+                        timing.recordTimeout()
+                    case .unreachable, .failed:
+                        break
+                    }
+
+                    if TCPPortScanRetryPolicy.shouldRetry(
+                        outcome: result.outcome,
+                        completedRetries:
+                            attemptResult.attempt.completedRetries,
+                        maxRetries: configuration.maxRetries
+                    ) {
+                        let retryNumber =
+                            attemptResult.attempt.completedRetries + 1
+                        timing.recordRetry()
+                        workQueue.appendRetry(
+                            TCPPortScanAttempt(
+                                port: result.port,
+                                completedRetries: retryNumber
+                            )
+                        )
+                        continuation.yield(
+                            .retryScheduled(
+                                port: result.port,
+                                retryNumber: retryNumber,
+                                timing: timing.snapshot
+                            )
+                        )
+                    } else {
+                        continuation.yield(
+                            .result(
+                                result,
+                                timing: timing.snapshot
+                            )
+                        )
                     }
                 }
             }
@@ -81,39 +124,48 @@ struct TCPPortScanClient: Sendable {
     }
 
     private static func scan(
-        port: Int,
+        attempt: TCPPortScanAttempt,
         configuration: TCPPortScanConfiguration
-    ) async throws -> TCPPortScanResult {
+    ) async throws -> TCPPortScanAttemptResult {
         do {
             let result = try await TCPConnectionClient().connect(
                 configuration: TCPConnectionConfiguration(
                     host: configuration.host,
-                    port: port,
+                    port: attempt.port,
                     addressFamily: configuration.addressFamily,
                     timeoutSeconds: configuration.timeoutSeconds
                 )
             )
-            return TCPPortScanResult(
-                port: port,
-                outcome: .open(
-                    address: result.address,
-                    addressFamily: result.addressFamily,
-                    connectionTimeMilliseconds:
-                        result.connectionTimeMilliseconds
+            return TCPPortScanAttemptResult(
+                attempt: attempt,
+                result: TCPPortScanResult(
+                    port: attempt.port,
+                    outcome: .open(
+                        address: result.address,
+                        addressFamily: result.addressFamily,
+                        connectionTimeMilliseconds:
+                            result.connectionTimeMilliseconds
+                    )
                 )
             )
         } catch is CancellationError {
             throw CancellationError()
         } catch let error as TCPConnectionClientError {
-            return try result(
-                port: port,
-                for: error
+            return TCPPortScanAttemptResult(
+                attempt: attempt,
+                result: try result(
+                    port: attempt.port,
+                    for: error
+                )
             )
         } catch {
-            return TCPPortScanResult(
-                port: port,
-                outcome: .failed(
-                    message: error.localizedDescription
+            return TCPPortScanAttemptResult(
+                attempt: attempt,
+                result: TCPPortScanResult(
+                    port: attempt.port,
+                    outcome: .failed(
+                        message: error.localizedDescription
+                    )
                 )
             )
         }
@@ -159,6 +211,53 @@ struct TCPPortScanClient: Sendable {
             port: port,
             outcome: outcome
         )
+    }
+}
+
+private struct TCPPortScanAttempt: Sendable {
+    let port: Int
+    let completedRetries: Int
+}
+
+private struct TCPPortScanAttemptResult: Sendable {
+    let attempt: TCPPortScanAttempt
+    let result: TCPPortScanResult
+}
+
+private struct TCPPortScanWorkQueue {
+    private let ports: [Int]
+    private var nextPortIndex = 0
+    private var retries: [TCPPortScanAttempt] = []
+    private var nextRetryIndex = 0
+
+    init(ports: [Int]) {
+        self.ports = ports
+    }
+
+    mutating func next() -> TCPPortScanAttempt? {
+        if nextRetryIndex < retries.count {
+            defer {
+                nextRetryIndex += 1
+            }
+            return retries[nextRetryIndex]
+        }
+
+        guard nextPortIndex < ports.count else {
+            return nil
+        }
+        defer {
+            nextPortIndex += 1
+        }
+        return TCPPortScanAttempt(
+            port: ports[nextPortIndex],
+            completedRetries: 0
+        )
+    }
+
+    mutating func appendRetry(
+        _ retry: TCPPortScanAttempt
+    ) {
+        retries.append(retry)
     }
 }
 

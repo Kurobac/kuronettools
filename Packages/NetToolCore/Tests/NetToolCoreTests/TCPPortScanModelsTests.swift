@@ -49,14 +49,16 @@ struct TCPPortScanModelsTests {
             ports: [443, 80, 443],
             addressFamily: .ipv4,
             timeoutSeconds: 2,
-            concurrency: 16
+            maxConcurrency: 16,
+            maxRetries: 2
         ).validated()
 
         #expect(configuration.host == "example.com")
         #expect(configuration.ports == [80, 443])
         #expect(configuration.addressFamily == .ipv4)
         #expect(configuration.timeoutSeconds == 2)
-        #expect(configuration.concurrency == 16)
+        #expect(configuration.maxConcurrency == 16)
+        #expect(configuration.maxRetries == 2)
     }
 
     @Test(
@@ -67,12 +69,22 @@ struct TCPPortScanModelsTests {
             TCPPortScanConfiguration(
                 host: "host",
                 ports: [80],
-                concurrency: 0
+                maxConcurrency: 0
             ),
             TCPPortScanConfiguration(
                 host: "host",
                 ports: [80],
-                concurrency: 129
+                maxConcurrency: 129
+            ),
+            TCPPortScanConfiguration(
+                host: "host",
+                ports: [80],
+                maxRetries: -1
+            ),
+            TCPPortScanConfiguration(
+                host: "host",
+                ports: [80],
+                maxRetries: 3
             )
         ]
     )
@@ -119,5 +131,91 @@ struct TCPPortScanModelsTests {
         #expect(summary.timedOut == 1)
         #expect(summary.unreachable == 1)
         #expect(summary.failed == 1)
+    }
+
+    @Test("Responsive results rapidly grow the congestion window")
+    func timingControllerSlowStarts() {
+        var timing = TCPPortScanTimingController(
+            maxParallelism: 32
+        )
+
+        #expect(timing.snapshot.currentParallelism == 8)
+        for _ in 0 ..< 8 {
+            timing.recordResponsiveResult()
+        }
+        #expect(timing.snapshot.currentParallelism == 16)
+        for _ in 0 ..< 16 {
+            timing.recordResponsiveResult()
+        }
+        #expect(timing.snapshot.currentParallelism == 32)
+    }
+
+    @Test("Timeouts halve the window without dropping below four")
+    func timingControllerBacksOff() {
+        var timing = TCPPortScanTimingController(
+            maxParallelism: 32
+        )
+        for _ in 0 ..< 24 {
+            timing.recordResponsiveResult()
+        }
+
+        timing.recordTimeout()
+        #expect(timing.snapshot.currentParallelism == 16)
+        timing.recordTimeout()
+        #expect(timing.snapshot.currentParallelism == 8)
+        timing.recordTimeout()
+        #expect(timing.snapshot.currentParallelism == 4)
+        timing.recordTimeout()
+        #expect(timing.snapshot.currentParallelism == 4)
+    }
+
+    @Test("The user maximum also bounds the initial window")
+    func timingControllerHonorsSmallMaximum() {
+        var timing = TCPPortScanTimingController(
+            maxParallelism: 3
+        )
+
+        #expect(timing.snapshot.currentParallelism == 3)
+        timing.recordResponsiveResult()
+        #expect(timing.snapshot.currentParallelism == 3)
+        timing.recordTimeout()
+        #expect(timing.snapshot.currentParallelism == 3)
+    }
+
+    @Test("Only timed out ports receive a bounded retry")
+    func retryPolicyIsBounded() {
+        #expect(
+            TCPPortScanRetryPolicy.shouldRetry(
+                outcome: .timedOut,
+                completedRetries: 0,
+                maxRetries: 1
+            )
+        )
+        #expect(
+            !TCPPortScanRetryPolicy.shouldRetry(
+                outcome: .timedOut,
+                completedRetries: 1,
+                maxRetries: 1
+            )
+        )
+        #expect(
+            !TCPPortScanRetryPolicy.shouldRetry(
+                outcome: .closed,
+                completedRetries: 0,
+                maxRetries: 1
+            )
+        )
+    }
+
+    @Test("Retry attempts are included in timing snapshots")
+    func timingControllerCountsRetries() {
+        var timing = TCPPortScanTimingController(
+            maxParallelism: 32
+        )
+
+        timing.recordRetry()
+        timing.recordRetry()
+
+        #expect(timing.snapshot.retryAttempts == 2)
     }
 }
