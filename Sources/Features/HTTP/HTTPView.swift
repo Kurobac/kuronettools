@@ -29,7 +29,7 @@ struct HTTPView: View {
 
                 Stepper(
                     value: $model.timeoutSeconds,
-                    in: 0.1 ... 60,
+                    in: 0.5 ... 60,
                     step: 0.5
                 ) {
                     LabeledContent(

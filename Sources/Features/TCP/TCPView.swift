@@ -35,8 +35,8 @@ struct TCPView: View {
             Section("参数") {
                 Stepper(
                     value: $model.timeoutSeconds,
-                    in: 0.1 ... 30,
-                    step: 0.1
+                    in: 0.5 ... 30,
+                    step: 0.5
                 ) {
                     LabeledContent(
                         "连接超时",

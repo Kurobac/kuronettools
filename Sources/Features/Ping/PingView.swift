@@ -36,8 +36,8 @@ struct PingView: View {
 
                 Stepper(
                     value: $model.intervalSeconds,
-                    in: 0.1 ... 10,
-                    step: 0.1
+                    in: 0.5 ... 10,
+                    step: 0.5
                 ) {
                     LabeledContent(
                         "发送间隔",
@@ -47,8 +47,8 @@ struct PingView: View {
 
                 Stepper(
                     value: $model.timeoutSeconds,
-                    in: 0.1 ... 30,
-                    step: 0.1
+                    in: 0.5 ... 30,
+                    step: 0.5
                 ) {
                     LabeledContent(
                         "单次超时",

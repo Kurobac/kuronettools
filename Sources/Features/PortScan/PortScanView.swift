@@ -35,29 +35,12 @@ struct PortScanView: View {
             Section("参数") {
                 Stepper(
                     value: $model.timeoutSeconds,
-                    in: 0.1 ... 30,
-                    step: 0.1
+                    in: 0.5 ... 30,
+                    step: 0.5
                 ) {
                     LabeledContent(
                         "单端口超时",
                         value: seconds(model.timeoutSeconds)
-                    )
-                }
-
-                Stepper(
-                    "最大并发：\(model.maxConcurrency)",
-                    value: $model.maxConcurrency,
-                    in: 1 ... 128
-                )
-
-                Stepper(
-                    value: $model.maxStartRate,
-                    in: 10 ... 1_000,
-                    step: 10
-                ) {
-                    LabeledContent(
-                        "最大发起速率",
-                        value: "\(model.maxStartRate) 次/秒"
                     )
                 }
 
@@ -128,53 +111,6 @@ struct PortScanView: View {
                         "失败",
                         value: String(summary.failed)
                     )
-
-                    if let timing = model.timing {
-                        LabeledContent(
-                            "当前并发窗口",
-                            value: String(timing.currentParallelism)
-                        )
-                        LabeledContent(
-                            "峰值并发窗口",
-                            value: String(timing.peakParallelism)
-                        )
-                        LabeledContent(
-                            "最大并发窗口",
-                            value: String(timing.maxParallelism)
-                        )
-                        LabeledContent(
-                            "当前发起速率",
-                            value: "\(timing.startRateLimit) 次/秒"
-                        )
-                        LabeledContent(
-                            "活动连接",
-                            value: String(timing.activeConnections)
-                        )
-                        LabeledContent(
-                            "峰值活动连接",
-                            value: String(
-                                timing.peakActiveConnections
-                            )
-                        )
-                        LabeledContent(
-                            "重试尝试",
-                            value: String(timing.retryAttempts)
-                        )
-                        LabeledContent(
-                            "超时尝试",
-                            value: String(timing.timeoutAttempts)
-                        )
-                        LabeledContent(
-                            "App 截止超时",
-                            value: String(
-                                timing.appDeadlineTimeouts
-                            )
-                        )
-                        LabeledContent(
-                            "系统 TCP 超时",
-                            value: String(timing.systemTimeouts)
-                        )
-                    }
                 }
             }
 

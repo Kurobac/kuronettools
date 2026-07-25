@@ -66,8 +66,8 @@ struct TLSView: View {
 
                 Stepper(
                     value: $model.timeoutSeconds,
-                    in: 0.1 ... 30,
-                    step: 0.1
+                    in: 0.5 ... 30,
+                    step: 0.5
                 ) {
                     LabeledContent(
                         "握手超时",
