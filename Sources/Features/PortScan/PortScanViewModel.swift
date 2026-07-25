@@ -21,6 +21,8 @@ final class PortScanViewModel {
     private(set) var isStopping = false
     private(set) var didComplete = false
     private(set) var retryRound = 0
+    private(set) var retryRoundCompleted = 0
+    private(set) var retryRoundTotal = 0
 
     @ObservationIgnored
     private let client = TCPPortScanClient()
@@ -162,7 +164,30 @@ final class PortScanViewModel {
                     + "\(timing.peakParallelism)"
             )
             lines.append(
+                "Active connections: \(timing.activeConnections)"
+            )
+            lines.append(
+                "Peak active connections: "
+                    + "\(timing.peakActiveConnections)"
+            )
+            lines.append(
                 "Retry attempts: \(timing.retryAttempts)"
+            )
+            lines.append(
+                "Timeout attempts: \(timing.timeoutAttempts)"
+            )
+            lines.append(
+                "App deadline timeouts: "
+                    + "\(timing.appDeadlineTimeouts)"
+            )
+            lines.append(
+                "System TCP timeouts: \(timing.systemTimeouts)"
+            )
+        }
+        if retryRound > 0 {
+            lines.append(
+                "Retry round progress: "
+                    + "\(retryRoundCompleted)/\(retryRoundTotal)"
             )
         }
 
@@ -211,9 +236,22 @@ final class PortScanViewModel {
         ):
             self.timing = timing
             retryRound = retryNumber
+            retryRoundCompleted = 0
+            retryRoundTotal = portCount
             statusMessage = "500ms 后进行第 "
                 + "\(retryNumber) 轮重试"
                 + "（\(portCount) 个端口）…"
+        case .retryRoundProgress(
+            let retryNumber,
+            let completed,
+            let total,
+            let timing
+        ):
+            self.timing = timing
+            retryRound = retryNumber
+            retryRoundCompleted = completed
+            retryRoundTotal = total
+            updateRunningStatus()
         case .result(let result, let timing):
             guard var updatedSummary = summary else {
                 return
@@ -255,6 +293,8 @@ final class PortScanViewModel {
         statusMessage = nil
         didComplete = false
         retryRound = 0
+        retryRoundCompleted = 0
+        retryRoundTotal = 0
         activeConfiguration = nil
         activePortExpression = nil
     }
@@ -266,7 +306,7 @@ final class PortScanViewModel {
         }
         if retryRound > 0 {
             statusMessage = "正在进行第 \(retryRound) 轮重试 · "
-                + "\(summary.scanned) / \(summary.total)…"
+                + "\(retryRoundCompleted) / \(retryRoundTotal)…"
         } else {
             statusMessage = "正在扫描 "
                 + "\(summary.scanned) / \(summary.total)…"

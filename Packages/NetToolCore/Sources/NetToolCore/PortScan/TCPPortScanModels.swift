@@ -255,18 +255,39 @@ public struct TCPPortScanTimingSnapshot: Equatable, Sendable {
     public let peakParallelism: Int
     public let maxParallelism: Int
     public let retryAttempts: Int
+    public let activeConnections: Int
+    public let peakActiveConnections: Int
+    public let appDeadlineTimeouts: Int
+    public let systemTimeouts: Int
 
     public init(
         currentParallelism: Int,
         peakParallelism: Int,
         maxParallelism: Int,
-        retryAttempts: Int
+        retryAttempts: Int,
+        activeConnections: Int,
+        peakActiveConnections: Int,
+        appDeadlineTimeouts: Int,
+        systemTimeouts: Int
     ) {
         self.currentParallelism = currentParallelism
         self.peakParallelism = peakParallelism
         self.maxParallelism = maxParallelism
         self.retryAttempts = retryAttempts
+        self.activeConnections = activeConnections
+        self.peakActiveConnections = peakActiveConnections
+        self.appDeadlineTimeouts = appDeadlineTimeouts
+        self.systemTimeouts = systemTimeouts
     }
+
+    public var timeoutAttempts: Int {
+        appDeadlineTimeouts + systemTimeouts
+    }
+}
+
+public enum TCPPortScanTimeoutOrigin: Equatable, Sendable {
+    case appDeadline
+    case system
 }
 
 public struct TCPPortScanTimingController: Equatable, Sendable {
@@ -276,6 +297,10 @@ public struct TCPPortScanTimingController: Equatable, Sendable {
     private var slowStartThreshold: Double
     private var peakParallelism: Int
     private var retryAttempts = 0
+    private var activeConnections = 0
+    private var peakActiveConnections = 0
+    private var appDeadlineTimeouts = 0
+    private var systemTimeouts = 0
 
     public init(maxParallelism: Int) {
         precondition(maxParallelism > 0)
@@ -292,7 +317,11 @@ public struct TCPPortScanTimingController: Equatable, Sendable {
             currentParallelism: currentParallelism,
             peakParallelism: peakParallelism,
             maxParallelism: Int(maximumWindow),
-            retryAttempts: retryAttempts
+            retryAttempts: retryAttempts,
+            activeConnections: activeConnections,
+            peakActiveConnections: peakActiveConnections,
+            appDeadlineTimeouts: appDeadlineTimeouts,
+            systemTimeouts: systemTimeouts
         )
     }
 
@@ -324,6 +353,23 @@ public struct TCPPortScanTimingController: Equatable, Sendable {
     public mutating func recordRetries(_ count: Int) {
         precondition(count >= 0)
         retryAttempts += count
+    }
+
+    public mutating func recordActiveConnections(_ count: Int) {
+        precondition(count >= 0)
+        activeConnections = count
+        peakActiveConnections = max(peakActiveConnections, count)
+    }
+
+    public mutating func recordTimeout(
+        origin: TCPPortScanTimeoutOrigin
+    ) {
+        switch origin {
+        case .appDeadline:
+            appDeadlineTimeouts += 1
+        case .system:
+            systemTimeouts += 1
+        }
     }
 
     private var currentParallelism: Int {
@@ -361,6 +407,12 @@ public enum TCPPortScanEvent: Equatable, Sendable {
     case retryRoundStarted(
         retryNumber: Int,
         portCount: Int,
+        timing: TCPPortScanTimingSnapshot
+    )
+    case retryRoundProgress(
+        retryNumber: Int,
+        completed: Int,
+        total: Int,
         timing: TCPPortScanTimingSnapshot
     )
     case result(

@@ -231,4 +231,33 @@ struct TCPPortScanModelsTests {
 
         #expect(timing.snapshot.retryAttempts == 2)
     }
+
+    @Test("Timeout attempts retain their source")
+    func timingControllerCountsTimeoutOrigins() {
+        var timing = TCPPortScanTimingController(
+            maxParallelism: 32
+        )
+
+        timing.recordTimeout(origin: .appDeadline)
+        timing.recordTimeout(origin: .appDeadline)
+        timing.recordTimeout(origin: .system)
+
+        #expect(timing.snapshot.timeoutAttempts == 3)
+        #expect(timing.snapshot.appDeadlineTimeouts == 2)
+        #expect(timing.snapshot.systemTimeouts == 1)
+    }
+
+    @Test("Actual active connections are measured separately")
+    func timingControllerCountsActiveConnections() {
+        var timing = TCPPortScanTimingController(
+            maxParallelism: 32
+        )
+
+        timing.recordActiveConnections(8)
+        timing.recordActiveConnections(3)
+
+        #expect(timing.snapshot.activeConnections == 3)
+        #expect(timing.snapshot.peakActiveConnections == 8)
+        #expect(timing.snapshot.currentParallelism == 8)
+    }
 }

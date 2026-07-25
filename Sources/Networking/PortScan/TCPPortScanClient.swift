@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import NetToolCore
 
@@ -29,6 +30,10 @@ struct TCPPortScanClient: Sendable {
     ) async {
         do {
             let configuration = try configuration.validated()
+            let endpoint = try DarwinTCPPortScanSocket.resolve(
+                host: configuration.host,
+                addressFamily: configuration.addressFamily
+            )
             var timing = TCPPortScanTimingController(
                 maxParallelism: configuration.maxConcurrency
             )
@@ -40,17 +45,19 @@ struct TCPPortScanClient: Sendable {
             )
 
             var attempts = configuration.ports.map {
-                TCPPortScanAttempt(
-                    port: $0
-                )
+                TCPPortScanAttempt(port: $0)
             }
             var completedRetries = 0
             var anchor: TCPPortScanAnchor?
 
             while true {
-                let round = try await scanRound(
+                let round = try scanRound(
                     attempts: attempts,
+                    endpoint: endpoint,
                     configuration: configuration,
+                    retryNumber: completedRetries,
+                    isFinalRound:
+                        completedRetries == configuration.maxRetries,
                     timing: timing,
                     anchor: anchor,
                     continuation: continuation
@@ -64,12 +71,11 @@ struct TCPPortScanClient: Sendable {
 
                 if let anchor {
                     continuation.yield(
-                        .pathProbeStarted(
-                            timing: timing.snapshot
-                        )
+                        .pathProbeStarted(timing: timing.snapshot)
                     )
-                    if try await isAnchorResponsive(
+                    if try isAnchorResponsive(
                         anchor,
+                        endpoint: endpoint,
                         configuration: configuration
                     ) {
                         timing.recordResponsiveResult()
@@ -83,15 +89,7 @@ struct TCPPortScanClient: Sendable {
                     completedRetries: completedRetries,
                     maxRetries: configuration.maxRetries
                 ) else {
-                    for attemptResult in round.timedOut {
-                        continuation.yield(
-                            .result(
-                                attemptResult.result,
-                                timing: timing.snapshot
-                            )
-                        )
-                    }
-                    break
+                    throw TCPPortScanClientError.unexpectedRetryState
                 }
 
                 completedRetries += 1
@@ -104,13 +102,9 @@ struct TCPPortScanClient: Sendable {
                     )
                 )
 
-                try await Task.sleep(
-                    for: .milliseconds(500)
-                )
+                try await Task.sleep(for: .milliseconds(500))
                 attempts = round.timedOut.map {
-                    TCPPortScanAttempt(
-                        port: $0.attempt.port
-                    )
+                    TCPPortScanAttempt(port: $0.attempt.port)
                 }
             }
 
@@ -129,70 +123,144 @@ struct TCPPortScanClient: Sendable {
 
     private static func scanRound(
         attempts: [TCPPortScanAttempt],
+        endpoint: DarwinTCPPortScanSocket.Endpoint,
         configuration: TCPPortScanConfiguration,
+        retryNumber: Int,
+        isFinalRound: Bool,
         timing initialTiming: TCPPortScanTimingController,
         anchor initialAnchor: TCPPortScanAnchor?,
         continuation: AsyncStream<TCPPortScanEvent>.Continuation
-    ) async throws -> TCPPortScanRoundResult {
-        var workQueue = TCPPortScanRoundQueue(
-            attempts: attempts
-        )
+    ) throws -> TCPPortScanRoundResult {
+        var workQueue = TCPPortScanRoundQueue(attempts: attempts)
+        var active: [
+            Int32: TCPPortScanActiveConnection
+        ] = [:]
         var timing = initialTiming
         var anchor = initialAnchor
         var timedOut: [TCPPortScanAttemptResult] = []
-        var activeAttempts = 0
+        var completedAttempts = 0
 
-        try await withThrowingTaskGroup(
-            of: TCPPortScanAttemptResult.self
-        ) { group in
-            while true {
-                while activeAttempts
-                        < timing.snapshot.currentParallelism,
-                      let attempt = workQueue.next() {
-                    activeAttempts += 1
-                    group.addTask {
-                        try await scan(
+        defer {
+            DarwinTCPPortScanSocket.close(
+                active.values.map(\.pending)
+            )
+        }
+
+        while true {
+            try Task.checkCancellation()
+
+            while active.count
+                    < timing.snapshot.currentParallelism,
+                  let attempt = workQueue.next() {
+                let startResult = try DarwinTCPPortScanSocket.start(
+                    endpoint: endpoint,
+                    port: attempt.port,
+                    timeoutSeconds: configuration.timeoutSeconds
+                )
+                switch startResult {
+                case .completed(let socketResult):
+                    try record(
+                        TCPPortScanAttemptResult(
                             attempt: attempt,
-                            configuration: configuration
-                        )
-                    }
-                }
-
-                guard activeAttempts > 0,
-                      let attemptResult = try await group.next()
-                else {
-                    break
-                }
-                activeAttempts -= 1
-                try Task.checkCancellation()
-
-                switch attemptResult.result.outcome {
-                case .open:
-                    timing.recordResponsiveResult()
-                    if anchor == nil {
-                        anchor = TCPPortScanAnchor(
-                            port: attemptResult.attempt.port
-                        )
-                    }
-                case .closed:
-                    timing.recordResponsiveResult()
-                    anchor = TCPPortScanAnchor(
-                        port: attemptResult.attempt.port
+                            socketResult: socketResult
+                        ),
+                        retryNumber: retryNumber,
+                        retryTotal: attempts.count,
+                        isFinalRound: isFinalRound,
+                        timing: &timing,
+                        anchor: &anchor,
+                        timedOut: &timedOut,
+                        completedAttempts: &completedAttempts,
+                        continuation: continuation
                     )
-                case .timedOut:
-                    timedOut.append(attemptResult)
-                case .unreachable, .failed:
+                case .pending(let pending):
+                    active[pending.descriptor] =
+                        TCPPortScanActiveConnection(
+                            attempt: attempt,
+                            pending: pending
+                        )
+                    timing.recordActiveConnections(active.count)
+                }
+            }
+
+            guard !active.isEmpty else {
+                if workQueue.isEmpty {
                     break
                 }
+                continue
+            }
 
-                if case .timedOut = attemptResult.result.outcome {
+            var pollDescriptors = active.keys.map {
+                pollfd(
+                    fd: $0,
+                    events: Int16(POLLOUT | POLLERR | POLLHUP),
+                    revents: 0
+                )
+            }
+            try DarwinTCPPortScanSocket.poll(
+                &pollDescriptors,
+                timeoutMilliseconds:
+                    pollTimeoutMilliseconds(for: active.values)
+            )
+            try Task.checkCancellation()
+
+            var completedResults: [TCPPortScanAttemptResult] = []
+            for descriptor in pollDescriptors
+            where descriptor.revents != 0 {
+                guard let connection = active.removeValue(
+                    forKey: descriptor.fd
+                ) else {
                     continue
                 }
-                continuation.yield(
-                    .result(
-                        attemptResult.result,
-                        timing: timing.snapshot
+                let socketResult = try DarwinTCPPortScanSocket.finish(
+                    connection.pending,
+                    endpoint: endpoint
+                )
+                completedResults.append(
+                    TCPPortScanAttemptResult(
+                        attempt: connection.attempt,
+                        socketResult: socketResult
                     )
+                )
+            }
+
+            let now = DispatchTime.now().uptimeNanoseconds
+            let expiredDescriptors = active.compactMap {
+                descriptor,
+                connection in
+                connection.pending.deadline <= now
+                    ? descriptor
+                    : nil
+            }
+            for descriptor in expiredDescriptors {
+                guard let connection = active.removeValue(
+                    forKey: descriptor
+                ) else {
+                    continue
+                }
+                completedResults.append(
+                    TCPPortScanAttemptResult(
+                        attempt: connection.attempt,
+                        socketResult:
+                            DarwinTCPPortScanSocket.timeout(
+                                connection.pending
+                            )
+                    )
+                )
+            }
+
+            timing.recordActiveConnections(active.count)
+            for attemptResult in completedResults {
+                try record(
+                    attemptResult,
+                    retryNumber: retryNumber,
+                    retryTotal: attempts.count,
+                    isFinalRound: isFinalRound,
+                    timing: &timing,
+                    anchor: &anchor,
+                    timedOut: &timedOut,
+                    completedAttempts: &completedAttempts,
+                    continuation: continuation
                 )
             }
         }
@@ -204,143 +272,200 @@ struct TCPPortScanClient: Sendable {
         )
     }
 
-    private static func isAnchorResponsive(
-        _ anchor: TCPPortScanAnchor,
-        configuration: TCPPortScanConfiguration
-    ) async throws -> Bool {
-        do {
-            _ = try await TCPConnectionClient().connect(
-                configuration: TCPConnectionConfiguration(
-                    host: configuration.host,
-                    port: anchor.port,
-                    addressFamily: configuration.addressFamily,
-                    timeoutSeconds: configuration.timeoutSeconds
+    private static func record(
+        _ attemptResult: TCPPortScanAttemptResult,
+        retryNumber: Int,
+        retryTotal: Int,
+        isFinalRound: Bool,
+        timing: inout TCPPortScanTimingController,
+        anchor: inout TCPPortScanAnchor?,
+        timedOut: inout [TCPPortScanAttemptResult],
+        completedAttempts: inout Int,
+        continuation: AsyncStream<TCPPortScanEvent>.Continuation
+    ) throws {
+        switch attemptResult.result.outcome {
+        case .open:
+            timing.recordResponsiveResult()
+            if anchor == nil {
+                anchor = TCPPortScanAnchor(
+                    port: attemptResult.attempt.port
+                )
+            }
+        case .closed:
+            timing.recordResponsiveResult()
+            anchor = TCPPortScanAnchor(
+                port: attemptResult.attempt.port
+            )
+        case .timedOut:
+            guard let timeoutOrigin = attemptResult.timeoutOrigin else {
+                throw TCPPortScanClientError.missingTimeoutOrigin
+            }
+            timing.recordTimeout(origin: timeoutOrigin)
+            if !isFinalRound {
+                timedOut.append(attemptResult)
+            }
+        case .unreachable, .failed:
+            break
+        }
+
+        if isFinalRound
+                || !attemptResult.result.outcome.isTimedOut {
+            continuation.yield(
+                .result(
+                    attemptResult.result,
+                    timing: timing.snapshot
                 )
             )
-            return true
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch let error as TCPConnectionClientError {
-            let probeResult = try result(
-                port: anchor.port,
-                for: error
+        }
+
+        completedAttempts += 1
+        if retryNumber > 0 {
+            continuation.yield(
+                .retryRoundProgress(
+                    retryNumber: retryNumber,
+                    completed: completedAttempts,
+                    total: retryTotal,
+                    timing: timing.snapshot
+                )
             )
-            switch probeResult.outcome {
-            case .open, .closed:
-                return true
-            case .timedOut, .unreachable, .failed:
-                return false
+        }
+    }
+
+    private static func isAnchorResponsive(
+        _ anchor: TCPPortScanAnchor,
+        endpoint: DarwinTCPPortScanSocket.Endpoint,
+        configuration: TCPPortScanConfiguration
+    ) throws -> Bool {
+        let result = try scanSingle(
+            port: anchor.port,
+            endpoint: endpoint,
+            timeoutSeconds: configuration.timeoutSeconds
+        )
+        switch result.outcome {
+        case .open, .closed:
+            return true
+        case .timedOut, .unreachable, .failed:
+            return false
+        }
+    }
+
+    private static func scanSingle(
+        port: Int,
+        endpoint: DarwinTCPPortScanSocket.Endpoint,
+        timeoutSeconds: Double
+    ) throws -> DarwinTCPPortScanSocket.ConnectionResult {
+        switch try DarwinTCPPortScanSocket.start(
+            endpoint: endpoint,
+            port: port,
+            timeoutSeconds: timeoutSeconds
+        ) {
+        case .completed(let result):
+            return result
+        case .pending(let pending):
+            while true {
+                do {
+                    try Task.checkCancellation()
+                } catch {
+                    DarwinTCPPortScanSocket.close([pending])
+                    throw error
+                }
+
+                var descriptors = [
+                    pollfd(
+                        fd: pending.descriptor,
+                        events: Int16(
+                            POLLOUT | POLLERR | POLLHUP
+                        ),
+                        revents: 0
+                    )
+                ]
+                do {
+                    try DarwinTCPPortScanSocket.poll(
+                        &descriptors,
+                        timeoutMilliseconds:
+                            pollTimeoutMilliseconds(
+                                deadline: pending.deadline
+                            )
+                    )
+                } catch {
+                    DarwinTCPPortScanSocket.close([pending])
+                    throw error
+                }
+
+                if descriptors[0].revents != 0 {
+                    return try DarwinTCPPortScanSocket.finish(
+                        pending,
+                        endpoint: endpoint
+                    )
+                }
+                if DispatchTime.now().uptimeNanoseconds
+                        >= pending.deadline {
+                    return DarwinTCPPortScanSocket.timeout(pending)
+                }
             }
         }
     }
 
-    private static func scan(
-        attempt: TCPPortScanAttempt,
-        configuration: TCPPortScanConfiguration
-    ) async throws -> TCPPortScanAttemptResult {
-        do {
-            let result = try await TCPConnectionClient().connect(
-                configuration: TCPConnectionConfiguration(
-                    host: configuration.host,
-                    port: attempt.port,
-                    addressFamily: configuration.addressFamily,
-                    timeoutSeconds: configuration.timeoutSeconds
-                )
-            )
-            return TCPPortScanAttemptResult(
-                attempt: attempt,
-                result: TCPPortScanResult(
-                    port: attempt.port,
-                    outcome: .open(
-                        address: result.address,
-                        addressFamily: result.addressFamily,
-                        connectionTimeMilliseconds:
-                            result.connectionTimeMilliseconds
-                    )
-                )
-            )
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch let error as TCPConnectionClientError {
-            return TCPPortScanAttemptResult(
-                attempt: attempt,
-                result: try result(
-                    port: attempt.port,
-                    for: error
-                )
-            )
-        } catch {
-            return TCPPortScanAttemptResult(
-                attempt: attempt,
-                result: TCPPortScanResult(
-                    port: attempt.port,
-                    outcome: .failed(
-                        message: error.localizedDescription
-                    )
-                )
-            )
+    private static func pollTimeoutMilliseconds(
+        for connections:
+            Dictionary<Int32, TCPPortScanActiveConnection>.Values
+    ) -> Int32 {
+        guard let deadline = connections.lazy.map({
+            $0.pending.deadline
+        }).min() else {
+            return 0
         }
+        return pollTimeoutMilliseconds(deadline: deadline)
     }
 
-    private static func result(
-        port: Int,
-        for error: TCPConnectionClientError
-    ) throws -> TCPPortScanResult {
-        let outcome: TCPPortScanOutcome
-        switch error {
-        case .connectionRefused:
-            outcome = .closed
-        case .timeout:
-            outcome = .timedOut
-        case .unreachable:
-            outcome = .unreachable
-        case .network(let message):
-            outcome = .failed(message: message)
-        case .dnsFailure(let message):
-            throw TCPPortScanClientError.dnsFailure(
-                message: message
-            )
-        case .invalidPort:
-            throw TCPPortScanClientError.setup(
-                message: "端口无效。"
-            )
-        case .unexpectedAddressFamily(let expected, let actual):
-            throw TCPPortScanClientError.setup(
-                message: "实际使用 \(actual.title)，"
-                    + "与所选的 \(expected.title) 不一致。"
-            )
-        case .missingIPOptions:
-            throw TCPPortScanClientError.setup(
-                message: "系统没有提供所需的 IP 协议选项。"
-            )
-        case .missingRemoteEndpoint:
-            throw TCPPortScanClientError.setup(
-                message: "系统没有提供实际远端地址。"
-            )
+    private static func pollTimeoutMilliseconds(
+        deadline: UInt64
+    ) -> Int32 {
+        let now = DispatchTime.now().uptimeNanoseconds
+        guard deadline > now else {
+            return 0
         }
-        return TCPPortScanResult(
-            port: port,
-            outcome: outcome
-        )
+        let remaining = deadline - now
+        let roundedMilliseconds =
+            (remaining + 999_999) / 1_000_000
+        return Int32(min(100, roundedMilliseconds))
     }
 }
 
-private struct TCPPortScanAttempt: Sendable {
+private struct TCPPortScanAttempt {
     let port: Int
 }
 
-private struct TCPPortScanAttemptResult: Sendable {
+private struct TCPPortScanAttemptResult {
     let attempt: TCPPortScanAttempt
     let result: TCPPortScanResult
+    let timeoutOrigin: TCPPortScanTimeoutOrigin?
+
+    init(
+        attempt: TCPPortScanAttempt,
+        socketResult: DarwinTCPPortScanSocket.ConnectionResult
+    ) {
+        self.attempt = attempt
+        self.result = TCPPortScanResult(
+            port: socketResult.port,
+            outcome: socketResult.outcome
+        )
+        self.timeoutOrigin = socketResult.timeoutOrigin
+    }
 }
 
-private struct TCPPortScanRoundResult: Sendable {
+private struct TCPPortScanActiveConnection {
+    let attempt: TCPPortScanAttempt
+    let pending: DarwinTCPPortScanSocket.PendingConnection
+}
+
+private struct TCPPortScanRoundResult {
     let timing: TCPPortScanTimingController
     let anchor: TCPPortScanAnchor?
     let timedOut: [TCPPortScanAttemptResult]
 }
 
-private struct TCPPortScanAnchor: Sendable {
+private struct TCPPortScanAnchor {
     let port: Int
 }
 
@@ -350,6 +475,10 @@ private struct TCPPortScanRoundQueue {
 
     init(attempts: [TCPPortScanAttempt]) {
         self.attempts = attempts
+    }
+
+    var isEmpty: Bool {
+        nextAttemptIndex >= attempts.count
     }
 
     mutating func next() -> TCPPortScanAttempt? {
@@ -363,20 +492,28 @@ private struct TCPPortScanRoundQueue {
     }
 }
 
+private extension TCPPortScanOutcome {
+    var isTimedOut: Bool {
+        if case .timedOut = self {
+            return true
+        }
+        return false
+    }
+}
+
 private enum TCPPortScanClientError:
     Error,
-    LocalizedError,
-    Sendable
+    LocalizedError
 {
-    case dnsFailure(message: String)
-    case setup(message: String)
+    case missingTimeoutOrigin
+    case unexpectedRetryState
 
     var errorDescription: String? {
         switch self {
-        case .dnsFailure(let message):
-            "DNS 解析失败：\(message)"
-        case .setup(let message):
-            "端口扫描无法继续：\(message)"
+        case .missingTimeoutOrigin:
+            "端口扫描收到超时结果，但缺少超时来源。"
+        case .unexpectedRetryState:
+            "端口扫描的重试轮状态不一致。"
         }
     }
 }

@@ -90,6 +90,13 @@ struct PortScanView: View {
                         "进度",
                         value: "\(summary.scanned) / \(summary.total)"
                     )
+                    if model.retryRound > 0 {
+                        LabeledContent(
+                            "本轮重试",
+                            value: "\(model.retryRoundCompleted) / "
+                                + "\(model.retryRoundTotal)"
+                        )
+                    }
                     LabeledContent(
                         "开放",
                         value: String(summary.open)
@@ -113,20 +120,44 @@ struct PortScanView: View {
 
                     if let timing = model.timing {
                         LabeledContent(
-                            "当前并发",
+                            "当前并发窗口",
                             value: String(timing.currentParallelism)
                         )
                         LabeledContent(
-                            "峰值并发",
+                            "峰值并发窗口",
                             value: String(timing.peakParallelism)
                         )
                         LabeledContent(
-                            "最大并发",
+                            "最大并发窗口",
                             value: String(timing.maxParallelism)
+                        )
+                        LabeledContent(
+                            "活动连接",
+                            value: String(timing.activeConnections)
+                        )
+                        LabeledContent(
+                            "峰值活动连接",
+                            value: String(
+                                timing.peakActiveConnections
+                            )
                         )
                         LabeledContent(
                             "重试尝试",
                             value: String(timing.retryAttempts)
+                        )
+                        LabeledContent(
+                            "超时尝试",
+                            value: String(timing.timeoutAttempts)
+                        )
+                        LabeledContent(
+                            "App 截止超时",
+                            value: String(
+                                timing.appDeadlineTimeouts
+                            )
+                        )
+                        LabeledContent(
+                            "系统 TCP 超时",
+                            value: String(timing.systemTimeouts)
                         )
                     }
                 }

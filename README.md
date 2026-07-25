@@ -144,8 +144,10 @@ Ping 与 Traceroute 的 Darwin socket 实现借鉴了 MIT 许可的
 [NetDiagnosis](https://github.com/453jerry/NetDiagnosis)。项目保留了对应的许可证文本：
 `Vendor/Licenses/NetDiagnosis-MIT.txt`。
 
-TCP 端口扫描的动态并发窗口与有限重试策略参考了 Nmap 公开说明的慢启动、
-拥塞退让和自适应重传思路；项目没有复制或链接 Nmap 源码。
+TCP 端口扫描使用一次解析、非阻塞 `connect()` 和 `poll()` 管理实际活动
+socket；动态并发窗口与有限分轮重试策略参考了 Nmap 公开说明的慢启动、
+拥塞退让和自适应重传思路。扫描会单独显示重试轮进度和 App/系统超时来源；
+项目没有复制或链接 Nmap 源码。
 
 证书字段解析使用 Apache 2.0 许可的
 [swift-certificates 1.19.3](https://github.com/apple/swift-certificates/tree/1.19.3)。
