@@ -121,6 +121,25 @@ public enum InterfaceAddressFamily: String, Equatable, Sendable {
     case ipv6 = "IPv6"
 }
 
+public enum NetworkInterfaceRelatedAddressKind: String, Equatable, Sendable {
+    case peer = "对端"
+    case broadcast = "广播"
+
+    public static func resolve(
+        family: InterfaceAddressFamily,
+        isPointToPoint: Bool,
+        supportsBroadcast: Bool
+    ) -> NetworkInterfaceRelatedAddressKind? {
+        if isPointToPoint {
+            return .peer
+        }
+        if family == .ipv4, supportsBroadcast {
+            return .broadcast
+        }
+        return nil
+    }
+}
+
 public struct NetworkInterfaceAddress: Equatable, Sendable {
     public let family: InterfaceAddressFamily
     public let address: String

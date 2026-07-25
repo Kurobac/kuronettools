@@ -17,6 +17,31 @@ struct NetworkInfoModelsTests {
         #expect(address.cidrDescription == "2001:db8::1/64")
     }
 
+    @Test("Related addresses follow IP family semantics")
+    func relatedAddressKind() {
+        #expect(
+            NetworkInterfaceRelatedAddressKind.resolve(
+                family: .ipv4,
+                isPointToPoint: false,
+                supportsBroadcast: true
+            ) == .broadcast
+        )
+        #expect(
+            NetworkInterfaceRelatedAddressKind.resolve(
+                family: .ipv6,
+                isPointToPoint: false,
+                supportsBroadcast: true
+            ) == nil
+        )
+        #expect(
+            NetworkInterfaceRelatedAddressKind.resolve(
+                family: .ipv6,
+                isPointToPoint: true,
+                supportsBroadcast: true
+            ) == .peer
+        )
+    }
+
     @Test("Neighbor identifiers separate families and interfaces")
     func neighborIdentifiers() {
         let ipv4 = NeighborEntry(

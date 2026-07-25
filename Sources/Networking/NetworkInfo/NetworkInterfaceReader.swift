@@ -87,17 +87,26 @@ struct NetworkInterfaceReader: Sendable {
             return nil
         }
 
-        let isPointToPoint =
-            UInt32(record.ifa_flags) & UInt32(IFF_POINTOPOINT) != 0
-        let hasRelatedAddress =
-            isPointToPoint
-            || UInt32(record.ifa_flags) & UInt32(IFF_BROADCAST) != 0
-        let relatedAddress = hasRelatedAddress
-            ? numericAddress(record.ifa_dstaddr)
-            : nil
+        let flags = UInt32(record.ifa_flags)
+        let addressFamily: InterfaceAddressFamily =
+            family == AF_INET ? .ipv4 : .ipv6
+        let relatedAddressKind =
+            NetworkInterfaceRelatedAddressKind.resolve(
+                family: addressFamily,
+                isPointToPoint:
+                    flags & UInt32(IFF_POINTOPOINT) != 0,
+                supportsBroadcast:
+                    flags & UInt32(IFF_BROADCAST) != 0
+            )
+        let destinationAddress = record.ifa_dstaddr
+        let relatedAddress =
+            relatedAddressKind != nil
+                && UInt(bitPattern: destinationAddress) != 0
+                ? numericAddress(destinationAddress)
+                : nil
 
         return NetworkInterfaceAddress(
-            family: family == AF_INET ? .ipv4 : .ipv6,
+            family: addressFamily,
             address: address,
             prefixLength: prefixLength(
                 netmask: record.ifa_netmask,
@@ -109,7 +118,7 @@ struct NetworkInterfaceReader: Sendable {
             ),
             relatedAddressLabel: relatedAddress == nil
                 ? nil
-                : (isPointToPoint ? "对端" : "广播"),
+                : relatedAddressKind?.rawValue,
             relatedAddress: relatedAddress
         )
     }
