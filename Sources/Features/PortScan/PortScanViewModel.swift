@@ -10,6 +10,7 @@ final class PortScanViewModel {
     var addressFamily = TCPAddressFamily.automatic
     var timeoutSeconds = 2.0
     var maxConcurrency = 32
+    var maxStartRate = 100
     var maxRetries = 2
 
     private(set) var summary: TCPPortScanSummary?
@@ -58,6 +59,7 @@ final class PortScanViewModel {
                 addressFamily: addressFamily,
                 timeoutSeconds: timeoutSeconds,
                 maxConcurrency: maxConcurrency,
+                maxStartRate: maxStartRate,
                 maxRetries: maxRetries
             ).validated()
         } catch {
@@ -80,6 +82,7 @@ final class PortScanViewModel {
                 + "\(configuration.host)，"
                 + "\(configuration.ports.count) 个端口，"
                 + "最大并发 \(configuration.maxConcurrency)，"
+                + "最大发起速率 \(configuration.maxStartRate) 次/秒，"
                 + "超时重试 \(configuration.maxRetries) 次"
         )
 
@@ -140,6 +143,8 @@ final class PortScanViewModel {
             "Address family: \(configuration.addressFamily.title)",
             "Timeout: \(format(configuration.timeoutSeconds)) s",
             "Maximum concurrency: \(configuration.maxConcurrency)",
+            "Maximum start rate: "
+                + "\(configuration.maxStartRate) connections/s",
             "Timeout retries: \(configuration.maxRetries)"
         ]
 
@@ -162,6 +167,10 @@ final class PortScanViewModel {
             lines.append(
                 "Peak concurrency window: "
                     + "\(timing.peakParallelism)"
+            )
+            lines.append(
+                "Current start rate limit: "
+                    + "\(timing.startRateLimit) connections/s"
             )
             lines.append(
                 "Active connections: \(timing.activeConnections)"
@@ -240,7 +249,8 @@ final class PortScanViewModel {
             retryRoundTotal = portCount
             statusMessage = "500ms 后进行第 "
                 + "\(retryNumber) 轮重试"
-                + "（\(portCount) 个端口）…"
+                + "（\(portCount) 个端口，"
+                + "\(timing.startRateLimit) 次/秒）…"
         case .retryRoundProgress(
             let retryNumber,
             let completed,
@@ -306,10 +316,12 @@ final class PortScanViewModel {
         }
         if retryRound > 0 {
             statusMessage = "正在进行第 \(retryRound) 轮重试 · "
-                + "\(retryRoundCompleted) / \(retryRoundTotal)…"
+                + "\(retryRoundCompleted) / \(retryRoundTotal) · "
+                + "\(timing?.startRateLimit ?? 0) 次/秒…"
         } else {
             statusMessage = "正在扫描 "
-                + "\(summary.scanned) / \(summary.total)…"
+                + "\(summary.scanned) / \(summary.total) · "
+                + "\(timing?.startRateLimit ?? 0) 次/秒…"
         }
     }
 

@@ -51,6 +51,17 @@ struct PortScanView: View {
                 )
 
                 Stepper(
+                    value: $model.maxStartRate,
+                    in: 10 ... 1_000,
+                    step: 10
+                ) {
+                    LabeledContent(
+                        "最大发起速率",
+                        value: "\(model.maxStartRate) 次/秒"
+                    )
+                }
+
+                Stepper(
                     "超时重试：\(model.maxRetries) 次",
                     value: $model.maxRetries,
                     in: 0 ... 2
@@ -130,6 +141,10 @@ struct PortScanView: View {
                         LabeledContent(
                             "最大并发窗口",
                             value: String(timing.maxParallelism)
+                        )
+                        LabeledContent(
+                            "当前发起速率",
+                            value: "\(timing.startRateLimit) 次/秒"
                         )
                         LabeledContent(
                             "活动连接",

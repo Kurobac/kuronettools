@@ -35,7 +35,8 @@ struct TCPPortScanClient: Sendable {
                 addressFamily: configuration.addressFamily
             )
             var timing = TCPPortScanTimingController(
-                maxParallelism: configuration.maxConcurrency
+                maxParallelism: configuration.maxConcurrency,
+                startRateLimit: configuration.maxStartRate
             )
             continuation.yield(
                 .started(
@@ -93,6 +94,12 @@ struct TCPPortScanClient: Sendable {
                 }
 
                 completedRetries += 1
+                timing.recordStartRateLimit(
+                    TCPPortScanPacingPolicy.startRateLimit(
+                        maximum: configuration.maxStartRate,
+                        retryNumber: completedRetries
+                    )
+                )
                 timing.recordRetries(round.timedOut.count)
                 continuation.yield(
                     .retryRoundStarted(
@@ -136,6 +143,18 @@ struct TCPPortScanClient: Sendable {
             Int32: TCPPortScanActiveConnection
         ] = [:]
         var timing = initialTiming
+        let startRateLimit =
+            TCPPortScanPacingPolicy.startRateLimit(
+                maximum: configuration.maxStartRate,
+                retryNumber: retryNumber
+            )
+        timing.recordStartRateLimit(startRateLimit)
+        let launchInterval =
+            TCPPortScanPacingPolicy.launchIntervalNanoseconds(
+                startRateLimit: startRateLimit
+            )
+        var nextLaunchAt =
+            DispatchTime.now().uptimeNanoseconds
         var anchor = initialAnchor
         var timedOut: [TCPPortScanAttemptResult] = []
         var completedAttempts = 0
@@ -151,12 +170,22 @@ struct TCPPortScanClient: Sendable {
 
             while active.count
                     < timing.snapshot.currentParallelism,
-                  let attempt = workQueue.next() {
+                  !workQueue.isEmpty {
+                guard DispatchTime.now().uptimeNanoseconds
+                        >= nextLaunchAt else {
+                    break
+                }
+                guard let attempt = workQueue.next() else {
+                    break
+                }
                 let startResult = try DarwinTCPPortScanSocket.start(
                     endpoint: endpoint,
                     port: attempt.port,
                     timeoutSeconds: configuration.timeoutSeconds
                 )
+                nextLaunchAt =
+                    DispatchTime.now().uptimeNanoseconds
+                    + launchInterval
                 switch startResult {
                 case .completed(let socketResult):
                     try record(
@@ -183,11 +212,8 @@ struct TCPPortScanClient: Sendable {
                 }
             }
 
-            guard !active.isEmpty else {
-                if workQueue.isEmpty {
-                    break
-                }
-                continue
+            if active.isEmpty && workQueue.isEmpty {
+                break
             }
 
             var pollDescriptors = active.keys.map {
@@ -200,7 +226,18 @@ struct TCPPortScanClient: Sendable {
             try DarwinTCPPortScanSocket.poll(
                 &pollDescriptors,
                 timeoutMilliseconds:
-                    pollTimeoutMilliseconds(for: active.values)
+                    pollTimeoutMilliseconds(
+                        for: active.values,
+                        nextLaunchAt:
+                            shouldWaitForLaunch(
+                                workQueue: workQueue,
+                                activeCount: active.count,
+                                parallelism:
+                                    timing.snapshot.currentParallelism
+                            )
+                            ? nextLaunchAt
+                            : nil
+                    )
             )
             try Task.checkCancellation()
 
@@ -408,14 +445,36 @@ struct TCPPortScanClient: Sendable {
 
     private static func pollTimeoutMilliseconds(
         for connections:
-            Dictionary<Int32, TCPPortScanActiveConnection>.Values
+            Dictionary<Int32, TCPPortScanActiveConnection>.Values,
+        nextLaunchAt: UInt64?
     ) -> Int32 {
-        guard let deadline = connections.lazy.map({
+        let connectionDeadline = connections.lazy.map({
             $0.pending.deadline
-        }).min() else {
+        }).min()
+        let deadline: UInt64?
+        switch (connectionDeadline, nextLaunchAt) {
+        case (.some(let connection), .some(let launch)):
+            deadline = min(connection, launch)
+        case (.some(let connection), .none):
+            deadline = connection
+        case (.none, .some(let launch)):
+            deadline = launch
+        case (.none, .none):
+            deadline = nil
+        }
+
+        guard let deadline else {
             return 0
         }
         return pollTimeoutMilliseconds(deadline: deadline)
+    }
+
+    private static func shouldWaitForLaunch(
+        workQueue: TCPPortScanRoundQueue,
+        activeCount: Int,
+        parallelism: Int
+    ) -> Bool {
+        !workQueue.isEmpty && activeCount < parallelism
     }
 
     private static func pollTimeoutMilliseconds(

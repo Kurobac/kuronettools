@@ -50,6 +50,7 @@ struct TCPPortScanModelsTests {
             addressFamily: .ipv4,
             timeoutSeconds: 2,
             maxConcurrency: 16,
+            maxStartRate: 200,
             maxRetries: 2
         ).validated()
 
@@ -58,6 +59,7 @@ struct TCPPortScanModelsTests {
         #expect(configuration.addressFamily == .ipv4)
         #expect(configuration.timeoutSeconds == 2)
         #expect(configuration.maxConcurrency == 16)
+        #expect(configuration.maxStartRate == 200)
         #expect(configuration.maxRetries == 2)
     }
 
@@ -70,6 +72,7 @@ struct TCPPortScanModelsTests {
 
         #expect(configuration.timeoutSeconds == 2)
         #expect(configuration.maxConcurrency == 32)
+        #expect(configuration.maxStartRate == 100)
         #expect(configuration.maxRetries == 2)
     }
 
@@ -87,6 +90,16 @@ struct TCPPortScanModelsTests {
                 host: "host",
                 ports: [80],
                 maxConcurrency: 129
+            ),
+            TCPPortScanConfiguration(
+                host: "host",
+                ports: [80],
+                maxStartRate: 9
+            ),
+            TCPPortScanConfiguration(
+                host: "host",
+                ports: [80],
+                maxStartRate: 1_001
             ),
             TCPPortScanConfiguration(
                 host: "host",
@@ -259,5 +272,32 @@ struct TCPPortScanModelsTests {
         #expect(timing.snapshot.activeConnections == 3)
         #expect(timing.snapshot.peakActiveConnections == 8)
         #expect(timing.snapshot.currentParallelism == 8)
+    }
+
+    @Test("Retry rounds progressively lower the launch rate")
+    func pacingPolicyLowersRetryRate() {
+        #expect(
+            TCPPortScanPacingPolicy.startRateLimit(
+                maximum: 100,
+                retryNumber: 0
+            ) == 100
+        )
+        #expect(
+            TCPPortScanPacingPolicy.startRateLimit(
+                maximum: 100,
+                retryNumber: 1
+            ) == 50
+        )
+        #expect(
+            TCPPortScanPacingPolicy.startRateLimit(
+                maximum: 100,
+                retryNumber: 2
+            ) == 25
+        )
+        #expect(
+            TCPPortScanPacingPolicy.launchIntervalNanoseconds(
+                startRateLimit: 100
+            ) == 10_000_000
+        )
     }
 }

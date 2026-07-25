@@ -110,6 +110,7 @@ public struct TCPPortScanConfiguration: Equatable, Sendable {
     public let addressFamily: TCPAddressFamily
     public let timeoutSeconds: Double
     public let maxConcurrency: Int
+    public let maxStartRate: Int
     public let maxRetries: Int
 
     public init(
@@ -118,6 +119,7 @@ public struct TCPPortScanConfiguration: Equatable, Sendable {
         addressFamily: TCPAddressFamily = .automatic,
         timeoutSeconds: Double = 2,
         maxConcurrency: Int = 32,
+        maxStartRate: Int = 100,
         maxRetries: Int = 2
     ) {
         self.host = host
@@ -125,6 +127,7 @@ public struct TCPPortScanConfiguration: Equatable, Sendable {
         self.addressFamily = addressFamily
         self.timeoutSeconds = timeoutSeconds
         self.maxConcurrency = maxConcurrency
+        self.maxStartRate = maxStartRate
         self.maxRetries = maxRetries
     }
 
@@ -139,6 +142,9 @@ public struct TCPPortScanConfiguration: Equatable, Sendable {
         }
         guard (1 ... 128).contains(maxConcurrency) else {
             throw TCPPortScanConfigurationError.invalidConcurrency
+        }
+        guard (10 ... 1_000).contains(maxStartRate) else {
+            throw TCPPortScanConfigurationError.invalidStartRate
         }
         guard (0 ... 2).contains(maxRetries) else {
             throw TCPPortScanConfigurationError.invalidRetryLimit
@@ -158,6 +164,7 @@ public struct TCPPortScanConfiguration: Equatable, Sendable {
             addressFamily: tcpConfiguration.addressFamily,
             timeoutSeconds: tcpConfiguration.timeoutSeconds,
             maxConcurrency: maxConcurrency,
+            maxStartRate: maxStartRate,
             maxRetries: maxRetries
         )
     }
@@ -171,6 +178,7 @@ public enum TCPPortScanConfigurationError:
     case emptyPorts
     case invalidPort
     case invalidConcurrency
+    case invalidStartRate
     case invalidRetryLimit
 
     public var errorDescription: String? {
@@ -181,6 +189,8 @@ public enum TCPPortScanConfigurationError:
             "所有端口都必须在 1 到 65535 范围内。"
         case .invalidConcurrency:
             "最大并发连接数必须在 1 到 128 之间。"
+        case .invalidStartRate:
+            "最大发起速率必须在每秒 10 到 1000 次之间。"
         case .invalidRetryLimit:
             "超时重试次数必须在 0 到 2 之间。"
         }
@@ -254,6 +264,7 @@ public struct TCPPortScanTimingSnapshot: Equatable, Sendable {
     public let currentParallelism: Int
     public let peakParallelism: Int
     public let maxParallelism: Int
+    public let startRateLimit: Int
     public let retryAttempts: Int
     public let activeConnections: Int
     public let peakActiveConnections: Int
@@ -264,6 +275,7 @@ public struct TCPPortScanTimingSnapshot: Equatable, Sendable {
         currentParallelism: Int,
         peakParallelism: Int,
         maxParallelism: Int,
+        startRateLimit: Int,
         retryAttempts: Int,
         activeConnections: Int,
         peakActiveConnections: Int,
@@ -273,6 +285,7 @@ public struct TCPPortScanTimingSnapshot: Equatable, Sendable {
         self.currentParallelism = currentParallelism
         self.peakParallelism = peakParallelism
         self.maxParallelism = maxParallelism
+        self.startRateLimit = startRateLimit
         self.retryAttempts = retryAttempts
         self.activeConnections = activeConnections
         self.peakActiveConnections = peakActiveConnections
@@ -296,20 +309,26 @@ public struct TCPPortScanTimingController: Equatable, Sendable {
     private var congestionWindow: Double
     private var slowStartThreshold: Double
     private var peakParallelism: Int
+    private var startRateLimit: Int
     private var retryAttempts = 0
     private var activeConnections = 0
     private var peakActiveConnections = 0
     private var appDeadlineTimeouts = 0
     private var systemTimeouts = 0
 
-    public init(maxParallelism: Int) {
+    public init(
+        maxParallelism: Int,
+        startRateLimit: Int = 100
+    ) {
         precondition(maxParallelism > 0)
+        precondition(startRateLimit > 0)
         let maximum = Double(maxParallelism)
         minimumWindow = min(4, maximum)
         maximumWindow = maximum
         congestionWindow = min(8, maximum)
         slowStartThreshold = maximum
         peakParallelism = Int(congestionWindow)
+        self.startRateLimit = startRateLimit
     }
 
     public var snapshot: TCPPortScanTimingSnapshot {
@@ -317,6 +336,7 @@ public struct TCPPortScanTimingController: Equatable, Sendable {
             currentParallelism: currentParallelism,
             peakParallelism: peakParallelism,
             maxParallelism: Int(maximumWindow),
+            startRateLimit: startRateLimit,
             retryAttempts: retryAttempts,
             activeConnections: activeConnections,
             peakActiveConnections: peakActiveConnections,
@@ -353,6 +373,11 @@ public struct TCPPortScanTimingController: Equatable, Sendable {
     public mutating func recordRetries(_ count: Int) {
         precondition(count >= 0)
         retryAttempts += count
+    }
+
+    public mutating func recordStartRateLimit(_ value: Int) {
+        precondition(value > 0)
+        startRateLimit = value
     }
 
     public mutating func recordActiveConnections(_ count: Int) {
@@ -393,6 +418,27 @@ public enum TCPPortScanRetryPolicy {
             return false
         }
         return completedRetries < maxRetries
+    }
+}
+
+public enum TCPPortScanPacingPolicy {
+    public static func startRateLimit(
+        maximum: Int,
+        retryNumber: Int
+    ) -> Int {
+        precondition(maximum > 0)
+        precondition(retryNumber >= 0)
+
+        let divisor = 1 << min(retryNumber, 30)
+        return max(10, maximum / divisor)
+    }
+
+    public static func launchIntervalNanoseconds(
+        startRateLimit: Int
+    ) -> UInt64 {
+        precondition(startRateLimit > 0)
+        let rate = UInt64(startRateLimit)
+        return (1_000_000_000 + rate - 1) / rate
     }
 }
 
