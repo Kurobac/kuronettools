@@ -262,6 +262,13 @@ public struct NeighborEntry: Identifiable, Equatable, Sendable {
         self.expiration = expiration
         self.isPermanent = isPermanent
     }
+
+    public func isExpired(at referenceDate: Date) -> Bool {
+        guard !isPermanent, let expiration else {
+            return false
+        }
+        return expiration <= referenceDate
+    }
 }
 
 public struct NeighborCacheSnapshot: Equatable, Sendable {

@@ -64,6 +64,39 @@ struct NetworkInfoModelsTests {
         #expect(ipv4.id != ipv6.id)
     }
 
+    @Test("Neighbor expiration preserves active and permanent entries")
+    func neighborExpiration() {
+        let referenceDate = Date(timeIntervalSince1970: 100)
+        let expired = NeighborEntry(
+            family: .ipv4,
+            address: "192.0.2.1",
+            interfaceName: "en0",
+            flags: ["HOST"],
+            expiration: Date(timeIntervalSince1970: 99),
+            isPermanent: false
+        )
+        let active = NeighborEntry(
+            family: .ipv4,
+            address: "192.0.2.2",
+            interfaceName: "en0",
+            flags: ["HOST"],
+            expiration: Date(timeIntervalSince1970: 101),
+            isPermanent: false
+        )
+        let permanent = NeighborEntry(
+            family: .ipv4,
+            address: "192.0.2.3",
+            interfaceName: "en0",
+            flags: ["HOST", "STATIC"],
+            expiration: nil,
+            isPermanent: true
+        )
+
+        #expect(expired.isExpired(at: referenceDate))
+        #expect(!active.isExpired(at: referenceDate))
+        #expect(!permanent.isExpired(at: referenceDate))
+    }
+
     @Test("Route destinations format defaults and prefixes")
     func routeDestinationDescription() {
         let defaultRoute = NetworkRouteEntry(

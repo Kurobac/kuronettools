@@ -4,13 +4,16 @@ import NetToolCore
 
 struct DarwinNeighborCacheReader: Sendable {
     func read() -> NeighborCacheSnapshot {
+        let referenceDate = Date()
         let ipv4 = readFamily(
             systemFamily: AF_INET,
-            family: .ipv4
+            family: .ipv4,
+            referenceDate: referenceDate
         )
         let ipv6 = readFamily(
             systemFamily: AF_INET6,
-            family: .ipv6
+            family: .ipv6,
+            referenceDate: referenceDate
         )
 
         return NeighborCacheSnapshot(
@@ -23,7 +26,8 @@ struct DarwinNeighborCacheReader: Sendable {
 
     private func readFamily(
         systemFamily: Int32,
-        family: NeighborAddressFamily
+        family: NeighborAddressFamily,
+        referenceDate: Date
     ) -> FamilyResult {
         do {
             let data = try routeData(family: systemFamily)
@@ -31,7 +35,8 @@ struct DarwinNeighborCacheReader: Sendable {
                 entries: try parse(
                     data,
                     expectedSystemFamily: systemFamily,
-                    family: family
+                    family: family,
+                    referenceDate: referenceDate
                 ),
                 error: nil
             )
@@ -115,7 +120,8 @@ struct DarwinNeighborCacheReader: Sendable {
     private func parse(
         _ data: Data,
         expectedSystemFamily: Int32,
-        family: NeighborAddressFamily
+        family: NeighborAddressFamily,
+        referenceDate: Date
     ) throws -> [NeighborEntry] {
         let bytes = [UInt8](data)
         guard !bytes.isEmpty else {
@@ -155,7 +161,8 @@ struct DarwinNeighborCacheReader: Sendable {
                 offset: offset,
                 length: messageLength,
                 expectedSystemFamily: expectedSystemFamily,
-                family: family
+                family: family,
+                referenceDate: referenceDate
             ) {
                 entries.append(entry)
             }
@@ -180,7 +187,8 @@ struct DarwinNeighborCacheReader: Sendable {
         offset: Int,
         length: Int,
         expectedSystemFamily: Int32,
-        family: NeighborAddressFamily
+        family: NeighborAddressFamily,
+        referenceDate: Date
     ) -> NeighborEntry? {
         let interfaceIndex = UInt32(
             readUInt16(bytes, at: offset + 4)
@@ -264,7 +272,7 @@ struct DarwinNeighborCacheReader: Sendable {
             ? Date(timeIntervalSince1970: TimeInterval(expirationValue))
             : nil
 
-        return NeighborEntry(
+        let entry = NeighborEntry(
             family: family,
             address: scopedAddress(
                 address,
@@ -276,6 +284,7 @@ struct DarwinNeighborCacheReader: Sendable {
             expiration: expiration,
             isPermanent: isPermanent
         )
+        return entry.isExpired(at: referenceDate) ? nil : entry
     }
 
     private func numericAddress(
