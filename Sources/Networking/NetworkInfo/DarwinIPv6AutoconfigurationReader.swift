@@ -412,7 +412,7 @@ struct DarwinIPv6AutoconfigurationReader: Sendable {
         )
 
         let result = bytes.withUnsafeMutableBytes { buffer in
-            Darwin.ioctl(
+            NetToolGetIPv6InterfaceInfo(
                 descriptor,
                 ND6Layout.getInterfaceInfoRequest,
                 buffer.baseAddress
