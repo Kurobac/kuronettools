@@ -232,19 +232,23 @@ struct DarwinRouteTableReader: Sendable {
             index: resolvedInterfaceIndex
         )
 
-        let gateway = gatewaySocket.flatMap {
-            guard $0.family == AF_INET || $0.family == AF_INET6 else {
+        let gateway: String? = gatewaySocket.flatMap {
+            socketAddress -> String? in
+            guard
+                socketAddress.family == AF_INET
+                    || socketAddress.family == AF_INET6
+            else {
                 return nil
             }
             guard let address = numericAddress(
                 bytes,
-                socketAddress: $0
+                socketAddress: socketAddress
             ) else {
                 return nil
             }
             return scopedAddress(
                 address,
-                systemFamily: $0.family,
+                systemFamily: socketAddress.family,
                 interfaceName: interfaceName
             )
         }
