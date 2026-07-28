@@ -8,6 +8,7 @@ final class NetworkInfoViewModel {
     private(set) var path: NetworkPathSnapshot?
     private(set) var interfaces: [NetworkInterfaceSnapshot] = []
     private(set) var interfacesError: String?
+    private(set) var routes = NetworkRouteTableSnapshot()
     private(set) var neighbors = NeighborCacheSnapshot()
     private(set) var lastUpdated: Date?
     private(set) var isRefreshing = false
@@ -58,16 +59,19 @@ final class NetworkInfoViewModel {
 
             self.interfaces = result.interfaces
             self.interfacesError = result.interfacesError
+            self.routes = result.routes
             self.neighbors = result.neighbors
             self.lastUpdated = result.generatedAt
             self.isRefreshing = false
             self.refreshTask = nil
 
             let neighborCount = result.neighbors.entries.count
+            let routeCount = result.routes.entries.count
             logStore.append(
                 level: .info,
                 message: "刷新网络信息："
                     + "\(result.interfaces.count) 个接口，"
+                    + "\(routeCount) 条路由，"
                     + "\(neighborCount) 条 Neighbor 缓存"
             )
 
@@ -87,6 +91,18 @@ final class NetworkInfoViewModel {
                 logStore.append(
                     level: .warning,
                     message: "读取 IPv6 Neighbor 失败：\(error)"
+                )
+            }
+            if let error = result.routes.ipv4Error {
+                logStore.append(
+                    level: .warning,
+                    message: "读取 IPv4 路由失败：\(error)"
+                )
+            }
+            if let error = result.routes.ipv6Error {
+                logStore.append(
+                    level: .warning,
+                    message: "读取 IPv6 路由失败：\(error)"
                 )
             }
         }
@@ -110,6 +126,7 @@ final class NetworkInfoViewModel {
                 path: path,
                 interfaces: interfaces,
                 interfacesError: interfacesError,
+                routes: routes,
                 neighbors: neighbors
             )
         )
@@ -120,6 +137,7 @@ private struct NetworkInfoCollectionResult: Sendable {
     let generatedAt: Date
     let interfaces: [NetworkInterfaceSnapshot]
     let interfacesError: String?
+    let routes: NetworkRouteTableSnapshot
     let neighbors: NeighborCacheSnapshot
 
     static func collect() -> NetworkInfoCollectionResult {
@@ -138,6 +156,7 @@ private struct NetworkInfoCollectionResult: Sendable {
             generatedAt: Date(),
             interfaces: interfaces,
             interfacesError: interfacesError,
+            routes: DarwinRouteTableReader().read(),
             neighbors: DarwinNeighborCacheReader().read()
         )
     }

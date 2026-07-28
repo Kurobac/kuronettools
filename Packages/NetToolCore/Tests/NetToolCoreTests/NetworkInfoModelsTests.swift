@@ -64,6 +64,61 @@ struct NetworkInfoModelsTests {
         #expect(ipv4.id != ipv6.id)
     }
 
+    @Test("Route destinations format defaults and prefixes")
+    func routeDestinationDescription() {
+        let defaultRoute = NetworkRouteEntry(
+            family: .ipv4,
+            destination: "0.0.0.0",
+            prefixLength: 0,
+            gateway: "192.0.2.1",
+            interfaceName: "en0",
+            flags: ["UP", "GATEWAY"],
+            mtu: 1500
+        )
+        let prefixRoute = NetworkRouteEntry(
+            family: .ipv6,
+            destination: "2001:db8::",
+            prefixLength: 32,
+            gateway: nil,
+            interfaceName: "en0",
+            flags: ["UP"],
+            mtu: nil
+        )
+
+        #expect(defaultRoute.isDefault)
+        #expect(defaultRoute.destinationDescription == "默认")
+        #expect(prefixRoute.destinationDescription == "2001:db8::/32")
+    }
+
+    @Test("Export includes route details")
+    func exportIncludesRoutes() {
+        let route = NetworkRouteEntry(
+            family: .ipv4,
+            destination: "0.0.0.0",
+            prefixLength: 0,
+            gateway: "192.0.2.1",
+            interfaceName: "en0",
+            flags: ["UP", "GATEWAY"],
+            mtu: 1500
+        )
+        let snapshot = NetworkInfoSnapshot(
+            generatedAt: Date(timeIntervalSince1970: 0),
+            path: nil,
+            interfaces: [],
+            interfacesError: nil,
+            routes: NetworkRouteTableSnapshot(ipv4: [route]),
+            neighbors: NeighborCacheSnapshot()
+        )
+
+        let text = NetworkInfoTextFormatter.format(snapshot)
+
+        #expect(
+            text.contains(
+                "默认 via 192.0.2.1 dev en0 [UP,GATEWAY] mtu 1500"
+            )
+        )
+    }
+
     @Test("Export distinguishes an empty cache from a read error")
     func exportDistinguishesEmptyAndError() {
         let snapshot = NetworkInfoSnapshot(

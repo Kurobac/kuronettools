@@ -10,6 +10,7 @@ struct NetworkInfoView: View {
         Form {
             pathSection
             gatewaySection
+            routeSection
             interfaceSection
             neighborSection
         }
@@ -122,6 +123,40 @@ struct NetworkInfoView: View {
                 }
             }
         }
+    }
+
+    private var routeSection: some View {
+        Section("路由") {
+            NavigationLink {
+                NetworkRouteTableView(snapshot: model.routes)
+            } label: {
+                HStack {
+                    Text("路由表")
+                    Spacer()
+                    if model.isRefreshing, model.routes.entries.isEmpty {
+                        ProgressView()
+                    } else if routeReadFailed {
+                        Text(routeSummary)
+                            .foregroundStyle(.red)
+                    } else {
+                        Text(routeSummary)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+    }
+
+    private var routeSummary: String {
+        if routeReadFailed, model.routes.entries.isEmpty {
+            return "读取失败"
+        }
+        return "IPv4 \(model.routes.ipv4.count) · "
+            + "IPv6 \(model.routes.ipv6.count)"
+    }
+
+    private var routeReadFailed: Bool {
+        model.routes.ipv4Error != nil || model.routes.ipv6Error != nil
     }
 
     @ViewBuilder
@@ -244,6 +279,86 @@ struct NetworkInfoView: View {
         case .unsatisfied:
             .red
         }
+    }
+}
+
+private struct NetworkRouteTableView: View {
+    let snapshot: NetworkRouteTableSnapshot
+
+    var body: some View {
+        Form {
+            routeSection(
+                family: .ipv4,
+                entries: snapshot.ipv4,
+                error: snapshot.ipv4Error
+            )
+            routeSection(
+                family: .ipv6,
+                entries: snapshot.ipv6,
+                error: snapshot.ipv6Error
+            )
+        }
+        .navigationTitle("路由表")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func routeSection(
+        family: RouteAddressFamily,
+        entries: [NetworkRouteEntry],
+        error: String?
+    ) -> some View {
+        Section(family.rawValue) {
+            if let error {
+                Text(error)
+                    .foregroundStyle(.red)
+                    .textSelection(.enabled)
+            } else if entries.isEmpty {
+                Text("没有路由")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(
+                    Array(entries.enumerated()),
+                    id: \.offset
+                ) { _, entry in
+                    NetworkRouteRow(entry: entry)
+                }
+            }
+        }
+    }
+}
+
+private struct NetworkRouteRow: View {
+    let entry: NetworkRouteEntry
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(entry.destinationDescription)
+                    .font(.callout)
+                    .textSelection(.enabled)
+                Spacer()
+                Text(entry.interfaceName)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack {
+                Text(entry.gateway.map { "via \($0)" } ?? "直连")
+                Spacer()
+                if let mtu = entry.mtu {
+                    Text("MTU \(mtu)")
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+
+            if !entry.flags.isEmpty {
+                Text(entry.flags.joined(separator: " · "))
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .padding(.vertical, 2)
     }
 }
 

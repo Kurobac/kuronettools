@@ -287,11 +287,89 @@ public struct NeighborCacheSnapshot: Equatable, Sendable {
     }
 }
 
+public enum RouteAddressFamily: String, Equatable, Sendable {
+    case ipv4 = "IPv4"
+    case ipv6 = "IPv6"
+}
+
+public struct NetworkRouteEntry: Identifiable, Equatable, Sendable {
+    public var id: String {
+        "\(family.rawValue)|\(destinationDescription)|"
+            + "\(gateway ?? "direct")|\(interfaceName)|"
+            + flags.joined(separator: ",")
+    }
+
+    public let family: RouteAddressFamily
+    public let destination: String
+    public let prefixLength: Int?
+    public let gateway: String?
+    public let interfaceName: String
+    public let flags: [String]
+    public let mtu: UInt32?
+
+    public init(
+        family: RouteAddressFamily,
+        destination: String,
+        prefixLength: Int?,
+        gateway: String?,
+        interfaceName: String,
+        flags: [String],
+        mtu: UInt32?
+    ) {
+        self.family = family
+        self.destination = destination
+        self.prefixLength = prefixLength
+        self.gateway = gateway
+        self.interfaceName = interfaceName
+        self.flags = flags
+        self.mtu = mtu
+    }
+
+    public var isDefault: Bool {
+        prefixLength == 0
+            && (destination == "0.0.0.0" || destination == "::")
+    }
+
+    public var destinationDescription: String {
+        if isDefault {
+            return "默认"
+        }
+        guard let prefixLength else {
+            return destination
+        }
+        return "\(destination)/\(prefixLength)"
+    }
+}
+
+public struct NetworkRouteTableSnapshot: Equatable, Sendable {
+    public let ipv4: [NetworkRouteEntry]
+    public let ipv6: [NetworkRouteEntry]
+    public let ipv4Error: String?
+    public let ipv6Error: String?
+
+    public init(
+        ipv4: [NetworkRouteEntry] = [],
+        ipv6: [NetworkRouteEntry] = [],
+        ipv4Error: String? = nil,
+        ipv6Error: String? = nil
+    ) {
+        self.ipv4 = ipv4
+        self.ipv6 = ipv6
+        self.ipv4Error = ipv4Error
+        self.ipv6Error = ipv6Error
+    }
+
+    public var entries: [NetworkRouteEntry] {
+        ipv4 + ipv6
+    }
+}
+
 public struct NetworkInfoSnapshot: Equatable, Sendable {
     public let generatedAt: Date
     public let path: NetworkPathSnapshot?
     public let interfaces: [NetworkInterfaceSnapshot]
     public let interfacesError: String?
+    public let routes: NetworkRouteTableSnapshot
     public let neighbors: NeighborCacheSnapshot
 
     public init(
@@ -299,12 +377,14 @@ public struct NetworkInfoSnapshot: Equatable, Sendable {
         path: NetworkPathSnapshot?,
         interfaces: [NetworkInterfaceSnapshot],
         interfacesError: String?,
+        routes: NetworkRouteTableSnapshot = NetworkRouteTableSnapshot(),
         neighbors: NeighborCacheSnapshot
     ) {
         self.generatedAt = generatedAt
         self.path = path
         self.interfaces = interfaces
         self.interfacesError = interfacesError
+        self.routes = routes
         self.neighbors = neighbors
     }
 }
@@ -346,6 +426,21 @@ public enum NetworkInfoTextFormatter {
         } else {
             lines.append("Unavailable")
         }
+
+        lines.append("")
+        lines.append("ROUTES")
+        appendRoutes(
+            snapshot.routes.ipv4,
+            family: .ipv4,
+            error: snapshot.routes.ipv4Error,
+            to: &lines
+        )
+        appendRoutes(
+            snapshot.routes.ipv6,
+            family: .ipv6,
+            error: snapshot.routes.ipv6Error,
+            to: &lines
+        )
 
         lines.append("")
         lines.append("INTERFACES")
@@ -414,6 +509,40 @@ public enum NetworkInfoTextFormatter {
         )
 
         return lines.joined(separator: "\n")
+    }
+
+    private static func appendRoutes(
+        _ entries: [NetworkRouteEntry],
+        family: RouteAddressFamily,
+        error: String?,
+        to lines: inout [String]
+    ) {
+        lines.append("")
+        lines.append(family.rawValue)
+
+        if let error {
+            lines.append("Error: \(error)")
+            return
+        }
+        if entries.isEmpty {
+            lines.append("(empty)")
+            return
+        }
+
+        for entry in entries {
+            var details = [entry.destinationDescription]
+            if let gateway = entry.gateway {
+                details.append("via \(gateway)")
+            }
+            details.append("dev \(entry.interfaceName)")
+            if !entry.flags.isEmpty {
+                details.append("[\(entry.flags.joined(separator: ","))]")
+            }
+            if let mtu = entry.mtu {
+                details.append("mtu \(mtu)")
+            }
+            lines.append(details.joined(separator: " "))
+        }
     }
 
     private static func appendNeighbors(

@@ -5,7 +5,7 @@ NetTool 是一个面向 iPhone 和 iPad 的个人网络诊断工具箱。项目�
 
 ## 当前状态
 
-Step 5A 已包含：
+当前网络页面已包含：
 
 - iOS 26 SwiftUI 应用骨架；
 - 可选择 IPv4、IPv6 或自动解析的 Ping；
@@ -42,6 +42,7 @@ Step 5A 已包含：
 - 当前路径状态、可用接口、IPv4/IPv6/DNS 支持、链路质量与网关；
 - 接口名称、类型、索引、标志、MTU、链路地址和流量统计；
 - 接口 IPv4/IPv6 地址、前缀、广播或点对点地址以及地址分类；
+- IPv4/IPv6 完整路由表，包含目标前缀、网关、接口、标志与路由 MTU；
 - IPv4 ARP 与 IPv6 NDP Neighbor 缓存的只读快照；
 - 网络信息文本报告导出，并明确区分空缓存与底层读取错误；
 - 应用版本与运行环境页面；
@@ -142,7 +143,8 @@ bash scripts/build_unsigned_ipa.sh
 4. Traceroute 与 TCP 端口扫描（已完成）
 5. 当前网络
    - 路径、接口、地址、网关与 Neighbor 缓存（已完成）
-   - 完整路由与 IPv6 RA 内核状态（待真机验证后继续）
+   - 完整路由表（已实现，待真机验证）
+   - IPv6 RA 内核状态（待真机验证后继续）
 
 ## 开源致谢
 
@@ -163,3 +165,6 @@ Neighbor 缓存读取方式参考 Apple 开源的
 [network_cmds/ndp](https://github.com/apple-oss-distributions/network_cmds/blob/main/ndp.tproj/ndp.c)
 和 XNU 路由消息 ABI。应用只读取 `PF_ROUTE` 的 `RTF_LLINFO` 快照，不会为了
 填充列表而主动探测局域网。
+
+完整路由表读取方式参考同一项目中 `netstat` 对 `NET_RT_DUMP2` 路由消息的解析。
+应用分别读取 IPv4 和 IPv6 的内核快照，不会用高层路径信息伪造缺失条目。
