@@ -205,51 +205,43 @@ struct NetworkInfoView: View {
 
     @ViewBuilder
     private var neighborSection: some View {
-        Section {
-            neighborFamily(
-                .ipv4,
-                entries: model.neighbors.ipv4,
-                error: model.neighbors.ipv4Error
-            )
-            neighborFamily(
-                .ipv6,
-                entries: model.neighbors.ipv6,
-                error: model.neighbors.ipv6Error
-            )
-        } header: {
-            Text("Neighbor")
-        } footer: {
-            Text(
-                "这里只读取系统已有的 ARP/NDP 缓存；刷新不会主动探测局域网设备。"
-            )
+        Section("Neighbor") {
+            NavigationLink {
+                NeighborCacheView(
+                    snapshot: model.neighbors,
+                    isRefreshing: model.isRefreshing
+                )
+            } label: {
+                HStack {
+                    Text("Neighbor 缓存")
+                    Spacer()
+                    if model.isRefreshing,
+                       model.neighbors.entries.isEmpty
+                    {
+                        ProgressView()
+                    } else if neighborReadFailed {
+                        Text(neighborSummary)
+                            .foregroundStyle(.red)
+                    } else {
+                        Text(neighborSummary)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
         }
     }
 
-    @ViewBuilder
-    private func neighborFamily(
-        _ family: NeighborAddressFamily,
-        entries: [NeighborEntry],
-        error: String?
-    ) -> some View {
-        if let error {
-            VStack(alignment: .leading, spacing: 5) {
-                Text(family.rawValue)
-                    .font(.callout.weight(.medium))
-                Text(error)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .textSelection(.enabled)
-            }
-        } else if entries.isEmpty {
-            LabeledContent(family.rawValue) {
-                Text(model.isRefreshing ? "正在读取…" : "缓存为空")
-                    .foregroundStyle(.secondary)
-            }
-        } else {
-            ForEach(entries) { entry in
-                NeighborRow(entry: entry)
-            }
+    private var neighborSummary: String {
+        if neighborReadFailed, model.neighbors.entries.isEmpty {
+            return "读取失败"
         }
+        return "IPv4 \(model.neighbors.ipv4.count) · "
+            + "IPv6 \(model.neighbors.ipv6.count)"
+    }
+
+    private var neighborReadFailed: Bool {
+        model.neighbors.ipv4Error != nil
+            || model.neighbors.ipv6Error != nil
     }
 
     private func capabilityRow(
@@ -278,6 +270,50 @@ struct NetworkInfoView: View {
             .orange
         case .unsatisfied:
             .red
+        }
+    }
+}
+
+private struct NeighborCacheView: View {
+    let snapshot: NeighborCacheSnapshot
+    let isRefreshing: Bool
+
+    var body: some View {
+        Form {
+            neighborSection(
+                .ipv4,
+                entries: snapshot.ipv4,
+                error: snapshot.ipv4Error
+            )
+            neighborSection(
+                .ipv6,
+                entries: snapshot.ipv6,
+                error: snapshot.ipv6Error
+            )
+        }
+        .navigationTitle("Neighbor 缓存")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    @ViewBuilder
+    private func neighborSection(
+        _ family: NeighborAddressFamily,
+        entries: [NeighborEntry],
+        error: String?
+    ) -> some View {
+        Section(family.rawValue) {
+            if let error {
+                Text(error)
+                    .foregroundStyle(.red)
+                    .textSelection(.enabled)
+            } else if entries.isEmpty {
+                Text(isRefreshing ? "正在读取…" : "缓存为空")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(entries) { entry in
+                    NeighborRow(entry: entry)
+                }
+            }
         }
     }
 }
@@ -405,7 +441,7 @@ private struct NeighborRow: View {
                     .font(.callout)
                     .textSelection(.enabled)
                 Spacer()
-                Text("\(entry.family.rawValue) · \(entry.interfaceName)")
+                Text(entry.interfaceName)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

@@ -20,33 +20,25 @@ public enum ToolCategory: String, CaseIterable, Hashable, Identifiable, Sendable
     }
 }
 
-public enum ToolAvailability: String, Hashable, Sendable {
-    case available
-    case planned
-}
-
 public struct ToolDescriptor: Identifiable, Hashable, Sendable {
     public let id: String
     public let title: String
     public let summary: String
     public let systemImage: String
     public let category: ToolCategory
-    public let availability: ToolAvailability
 
     public init(
         id: String,
         title: String,
         summary: String,
         systemImage: String,
-        category: ToolCategory,
-        availability: ToolAvailability = .planned
+        category: ToolCategory
     ) {
         self.id = id
         self.title = title
         self.summary = summary
         self.systemImage = systemImage
         self.category = category
-        self.availability = availability
     }
 }
 
@@ -57,64 +49,56 @@ public enum ToolCatalog {
             title: "Ping",
             summary: "ICMP 连通性与时延",
             systemImage: "dot.radiowaves.left.and.right",
-            category: .diagnostics,
-            availability: .available
+            category: .diagnostics
         ),
         ToolDescriptor(
             id: "traceroute",
             title: "Traceroute",
             summary: "逐跳检查网络路径",
             systemImage: "point.bottomleft.forward.to.point.topright.scurvepath",
-            category: .diagnostics,
-            availability: .available
+            category: .diagnostics
         ),
         ToolDescriptor(
             id: "tcp",
             title: "TCP 连接",
             summary: "测试端口与连接耗时",
             systemImage: "cable.connector",
-            category: .diagnostics,
-            availability: .available
+            category: .diagnostics
         ),
         ToolDescriptor(
             id: "port-scan",
             title: "端口扫描",
             summary: "TCP Connect Scan",
             systemImage: "square.grid.3x3.square",
-            category: .diagnostics,
-            availability: .available
+            category: .diagnostics
         ),
         ToolDescriptor(
             id: "dns",
             title: "DNS 查询",
             summary: "UDP、TCP、DoT 与 DoH",
             systemImage: "network",
-            category: .dns,
-            availability: .available
+            category: .dns
         ),
         ToolDescriptor(
             id: "tls",
             title: "TLS 检查",
             summary: "握手、协议与证书链",
             systemImage: "checkmark.shield",
-            category: .web,
-            availability: .available
+            category: .web
         ),
         ToolDescriptor(
             id: "http",
             title: "HTTP 信息",
             summary: "状态、响应头与请求耗时",
             systemImage: "globe",
-            category: .web,
-            availability: .available
+            category: .web
         ),
         ToolDescriptor(
             id: "network-info",
             title: "网络信息",
             summary: "路径、接口、网关与 Neighbor",
             systemImage: "wifi",
-            category: .network,
-            availability: .available
+            category: .network
         )
     ]
 

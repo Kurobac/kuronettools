@@ -10,21 +10,6 @@ struct HomeView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section {
-                    LabeledContent("开发阶段") {
-                        Text("Step 5A")
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Text(
-                        "Ping、Traceroute、端口扫描、DNS、TCP、TLS 与 HTTP 信息"
-                            + "以及当前网络信息已可用；"
-                            + "其他工具会在后续阶段逐项启用。"
-                    )
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
-
                 ForEach(ToolCategory.allCases) { category in
                     Section(category.title) {
                         ForEach(ToolCatalog.tools(in: category)) { tool in
@@ -110,17 +95,6 @@ private struct ToolRow: View {
             }
 
             Spacer()
-
-            switch tool.availability {
-            case .available:
-                Text("可用")
-                    .font(.caption2)
-                    .foregroundStyle(.green)
-            case .planned:
-                Text("规划中")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-            }
         }
         .padding(.vertical, 3)
     }

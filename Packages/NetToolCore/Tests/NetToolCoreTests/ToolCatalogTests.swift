@@ -18,72 +18,27 @@ struct ToolCatalogTests {
         }
     }
 
-    @Test("Ping is the first available tool")
-    func pingIsAvailable() {
+    @Test("Ping is the first tool")
+    func pingIsFirst() {
         #expect(ToolCatalog.all.first?.id == "ping")
-        #expect(ToolCatalog.all.first?.availability == .available)
     }
 
-    @Test("DNS is available in Step 2")
-    func dnsIsAvailable() throws {
-        let dns = try #require(
-            ToolCatalog.all.first { $0.id == "dns" }
+    @Test("Catalog contains every implemented tool")
+    func containsImplementedTools() {
+        #expect(
+            Set(ToolCatalog.all.map(\.id))
+                == Set(
+                    [
+                        "ping",
+                        "traceroute",
+                        "tcp",
+                        "port-scan",
+                        "dns",
+                        "tls",
+                        "http",
+                        "network-info"
+                    ]
+                )
         )
-
-        #expect(dns.availability == .available)
-    }
-
-    @Test("TCP connect is available in Step 3A")
-    func tcpIsAvailable() throws {
-        let tcp = try #require(
-            ToolCatalog.all.first { $0.id == "tcp" }
-        )
-
-        #expect(tcp.availability == .available)
-    }
-
-    @Test("TLS inspector is available in Step 3B")
-    func tlsIsAvailable() throws {
-        let tls = try #require(
-            ToolCatalog.all.first { $0.id == "tls" }
-        )
-
-        #expect(tls.availability == .available)
-    }
-
-    @Test("HTTP inspector is available in Step 3C")
-    func httpIsAvailable() throws {
-        let http = try #require(
-            ToolCatalog.all.first { $0.id == "http" }
-        )
-
-        #expect(http.availability == .available)
-    }
-
-    @Test("Traceroute is available in Step 4A")
-    func tracerouteIsAvailable() throws {
-        let traceroute = try #require(
-            ToolCatalog.all.first { $0.id == "traceroute" }
-        )
-
-        #expect(traceroute.availability == .available)
-    }
-
-    @Test("TCP port scan is available in Step 4B")
-    func portScanIsAvailable() throws {
-        let portScan = try #require(
-            ToolCatalog.all.first { $0.id == "port-scan" }
-        )
-
-        #expect(portScan.availability == .available)
-    }
-
-    @Test("Network information is available in Step 5A")
-    func networkInfoIsAvailable() throws {
-        let networkInfo = try #require(
-            ToolCatalog.all.first { $0.id == "network-info" }
-        )
-
-        #expect(networkInfo.availability == .available)
     }
 }
