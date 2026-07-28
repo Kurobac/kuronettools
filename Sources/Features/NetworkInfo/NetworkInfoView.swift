@@ -285,17 +285,15 @@ private struct NeighborRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(entry.address)
-                .font(.callout)
-                .textSelection(.enabled)
-
             HStack {
-                Text(entry.linkLayerAddress ?? "未解析链路地址")
+                Text(entry.address)
+                    .font(.callout)
+                    .textSelection(.enabled)
                 Spacer()
                 Text("\(entry.family.rawValue) · \(entry.interfaceName)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
-            .font(.caption)
-            .foregroundStyle(.secondary)
 
             if entry.isPermanent || entry.expiration != nil
                 || !entry.flags.isEmpty

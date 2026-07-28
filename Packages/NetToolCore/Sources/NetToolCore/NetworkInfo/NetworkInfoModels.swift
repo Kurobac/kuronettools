@@ -242,7 +242,6 @@ public struct NeighborEntry: Identifiable, Equatable, Sendable {
 
     public let family: NeighborAddressFamily
     public let address: String
-    public let linkLayerAddress: String?
     public let interfaceName: String
     public let flags: [String]
     public let expiration: Date?
@@ -251,7 +250,6 @@ public struct NeighborEntry: Identifiable, Equatable, Sendable {
     public init(
         family: NeighborAddressFamily,
         address: String,
-        linkLayerAddress: String?,
         interfaceName: String,
         flags: [String],
         expiration: Date?,
@@ -259,7 +257,6 @@ public struct NeighborEntry: Identifiable, Equatable, Sendable {
     ) {
         self.family = family
         self.address = address
-        self.linkLayerAddress = linkLayerAddress
         self.interfaceName = interfaceName
         self.flags = flags
         self.expiration = expiration
@@ -440,7 +437,6 @@ public enum NetworkInfoTextFormatter {
         for entry in entries {
             var details = [
                 entry.address,
-                entry.linkLayerAddress ?? "(incomplete)",
                 "dev \(entry.interfaceName)"
             ]
             if !entry.flags.isEmpty {

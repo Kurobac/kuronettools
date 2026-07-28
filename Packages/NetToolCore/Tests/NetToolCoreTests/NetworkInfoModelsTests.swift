@@ -47,7 +47,6 @@ struct NetworkInfoModelsTests {
         let ipv4 = NeighborEntry(
             family: .ipv4,
             address: "192.0.2.1",
-            linkLayerAddress: "00:11:22:33:44:55",
             interfaceName: "en0",
             flags: [],
             expiration: nil,
@@ -56,7 +55,6 @@ struct NetworkInfoModelsTests {
         let ipv6 = NeighborEntry(
             family: .ipv6,
             address: "192.0.2.1",
-            linkLayerAddress: "00:11:22:33:44:55",
             interfaceName: "en0",
             flags: [],
             expiration: nil,

@@ -243,14 +243,14 @@ struct DarwinNeighborCacheReader: Sendable {
             return nil
         }
 
-        let linkInformation = linkInformation(
+        let gatewayInterfaceIndex = interfaceIndex(
             bytes,
             socketAddress: gateway
         )
         let resolvedInterfaceIndex =
-            linkInformation.interfaceIndex == 0
+            gatewayInterfaceIndex == 0
                 ? interfaceIndex
-                : linkInformation.interfaceIndex
+                : gatewayInterfaceIndex
         let interfaceName = interfaceName(
             index: resolvedInterfaceIndex
         )
@@ -271,7 +271,6 @@ struct DarwinNeighborCacheReader: Sendable {
                 family: family,
                 interfaceName: interfaceName
             ),
-            linkLayerAddress: linkInformation.address,
             interfaceName: interfaceName,
             flags: flagNames(flags),
             expiration: expiration,
@@ -328,43 +327,22 @@ struct DarwinNeighborCacheReader: Sendable {
         return decodedCString(host)
     }
 
-    private func linkInformation(
+    private func interfaceIndex(
         _ bytes: [UInt8],
         socketAddress: SocketAddress
-    ) -> LinkInformation {
-        guard socketAddress.length >= 8 else {
-            return LinkInformation(
-                interfaceIndex: 0,
-                address: nil
-            )
+    ) -> UInt32 {
+        guard
+            socketAddress.length >= 4,
+            socketAddress.offset + 4 <= bytes.count
+        else {
+            return 0
         }
 
-        let index = UInt32(
+        return UInt32(
             readUInt16(
                 bytes,
                 at: socketAddress.offset + 2
             )
-        )
-        let nameLength = Int(bytes[socketAddress.offset + 5])
-        let addressLength = Int(bytes[socketAddress.offset + 6])
-        let addressOffset = socketAddress.offset + 8 + nameLength
-        guard
-            addressLength > 0,
-            addressOffset + addressLength
-                <= socketAddress.offset + socketAddress.length
-        else {
-            return LinkInformation(
-                interfaceIndex: index,
-                address: nil
-            )
-        }
-
-        let address = (addressOffset ..< addressOffset + addressLength)
-            .map { String(format: "%02X", bytes[$0]) }
-            .joined(separator: ":")
-        return LinkInformation(
-            interfaceIndex: index,
-            address: address
         )
     }
 
@@ -455,11 +433,6 @@ private struct SocketAddress {
     let offset: Int
     let length: Int
     let family: Int32
-}
-
-private struct LinkInformation {
-    let interfaceIndex: UInt32
-    let address: String?
 }
 
 private struct NeighborCacheParseError: LocalizedError {
