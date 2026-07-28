@@ -265,7 +265,7 @@ struct DarwinRouteTableReader: Sendable {
             at: offset + RouteLayout.mtuOffset
         )
 
-        return NetworkRouteEntry(
+        let entry = NetworkRouteEntry(
             family: family,
             destination: scopedAddress(
                 destination,
@@ -278,6 +278,7 @@ struct DarwinRouteTableReader: Sendable {
             flags: flagNames(flags),
             mtu: mtuValue == 0 ? nil : mtuValue
         )
+        return entry.isRoutingCacheEntry ? nil : entry
     }
 
     private func numericAddress(

@@ -339,6 +339,10 @@ public struct NetworkRouteEntry: Identifiable, Equatable, Sendable {
         }
         return "\(destination)/\(prefixLength)"
     }
+
+    public var isRoutingCacheEntry: Bool {
+        flags.contains("LLINFO") || flags.contains("WASCLONED")
+    }
 }
 
 public struct NetworkRouteTableSnapshot: Equatable, Sendable {

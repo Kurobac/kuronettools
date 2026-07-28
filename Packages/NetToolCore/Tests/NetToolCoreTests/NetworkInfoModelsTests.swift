@@ -90,6 +90,51 @@ struct NetworkInfoModelsTests {
         #expect(prefixRoute.destinationDescription == "2001:db8::/32")
     }
 
+    @Test("Route cache detection preserves configured host routes")
+    func routeCacheDetection() {
+        let connectedPrefix = NetworkRouteEntry(
+            family: .ipv4,
+            destination: "192.168.1.0",
+            prefixLength: 24,
+            gateway: nil,
+            interfaceName: "en0",
+            flags: ["UP", "CLONING"],
+            mtu: 1500
+        )
+        let clonedHost = NetworkRouteEntry(
+            family: .ipv4,
+            destination: "192.168.1.42",
+            prefixLength: 32,
+            gateway: nil,
+            interfaceName: "en0",
+            flags: ["UP", "HOST", "WASCLONED"],
+            mtu: 1500
+        )
+        let neighbor = NetworkRouteEntry(
+            family: .ipv4,
+            destination: "192.168.1.1",
+            prefixLength: 32,
+            gateway: nil,
+            interfaceName: "en0",
+            flags: ["UP", "HOST", "LLINFO"],
+            mtu: 1500
+        )
+        let configuredHost = NetworkRouteEntry(
+            family: .ipv4,
+            destination: "192.0.2.10",
+            prefixLength: 32,
+            gateway: "192.168.1.1",
+            interfaceName: "en0",
+            flags: ["UP", "GATEWAY", "HOST", "STATIC"],
+            mtu: 1500
+        )
+
+        #expect(!connectedPrefix.isRoutingCacheEntry)
+        #expect(clonedHost.isRoutingCacheEntry)
+        #expect(neighbor.isRoutingCacheEntry)
+        #expect(!configuredHost.isRoutingCacheEntry)
+    }
+
     @Test("Export includes route details")
     func exportIncludesRoutes() {
         let route = NetworkRouteEntry(
