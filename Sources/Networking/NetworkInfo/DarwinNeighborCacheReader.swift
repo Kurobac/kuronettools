@@ -243,7 +243,7 @@ struct DarwinNeighborCacheReader: Sendable {
             return nil
         }
 
-        let gatewayInterfaceIndex = interfaceIndex(
+        let gatewayInterfaceIndex = linkInterfaceIndex(
             bytes,
             socketAddress: gateway
         )
@@ -327,7 +327,7 @@ struct DarwinNeighborCacheReader: Sendable {
         return decodedCString(host)
     }
 
-    private func interfaceIndex(
+    private func linkInterfaceIndex(
         _ bytes: [UInt8],
         socketAddress: SocketAddress
     ) -> UInt32 {
