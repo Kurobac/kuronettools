@@ -370,6 +370,7 @@ public struct NetworkInfoSnapshot: Equatable, Sendable {
     public let interfaces: [NetworkInterfaceSnapshot]
     public let interfacesError: String?
     public let routes: NetworkRouteTableSnapshot
+    public let ipv6Autoconfiguration: IPv6AutoconfigurationSnapshot
     public let neighbors: NeighborCacheSnapshot
 
     public init(
@@ -378,6 +379,8 @@ public struct NetworkInfoSnapshot: Equatable, Sendable {
         interfaces: [NetworkInterfaceSnapshot],
         interfacesError: String?,
         routes: NetworkRouteTableSnapshot = NetworkRouteTableSnapshot(),
+        ipv6Autoconfiguration: IPv6AutoconfigurationSnapshot =
+            IPv6AutoconfigurationSnapshot(),
         neighbors: NeighborCacheSnapshot
     ) {
         self.generatedAt = generatedAt
@@ -385,6 +388,7 @@ public struct NetworkInfoSnapshot: Equatable, Sendable {
         self.interfaces = interfaces
         self.interfacesError = interfacesError
         self.routes = routes
+        self.ipv6Autoconfiguration = ipv6Autoconfiguration
         self.neighbors = neighbors
     }
 }
@@ -439,6 +443,11 @@ public enum NetworkInfoTextFormatter {
             snapshot.routes.ipv6,
             family: .ipv6,
             error: snapshot.routes.ipv6Error,
+            to: &lines
+        )
+
+        appendIPv6Autoconfiguration(
+            snapshot.ipv6Autoconfiguration,
             to: &lines
         )
 
@@ -543,6 +552,145 @@ public enum NetworkInfoTextFormatter {
             }
             lines.append(details.joined(separator: " "))
         }
+    }
+
+    private static func appendIPv6Autoconfiguration(
+        _ snapshot: IPv6AutoconfigurationSnapshot,
+        to lines: inout [String]
+    ) {
+        lines.append("")
+        lines.append("IPV6 AUTOCONFIGURATION")
+        lines.append("")
+        lines.append("DEFAULT ROUTERS")
+        appendReadErrorOrEmpty(
+            error: snapshot.defaultRoutersError,
+            isEmpty: snapshot.defaultRouters.isEmpty,
+            to: &lines
+        )
+        for router in snapshot.defaultRouters {
+            var details = [
+                router.address,
+                "dev \(router.interfaceName)",
+                "preference \(router.preference.rawValue)",
+                "lifetime \(router.advertisedLifetimeSeconds)s"
+            ]
+            details.append(
+                "RA ["
+                    + listOrNone(router.raFlags)
+                    + "]"
+            )
+            if !router.stateFlags.isEmpty {
+                details.append(
+                    "state [\(router.stateFlags.joined(separator: ","))]"
+                )
+            }
+            details.append(
+                "expires \(expiration(router.expiration))"
+            )
+            lines.append(details.joined(separator: " "))
+        }
+
+        lines.append("")
+        lines.append("PREFIXES")
+        appendReadErrorOrEmpty(
+            error: snapshot.prefixesError,
+            isEmpty: snapshot.prefixes.isEmpty,
+            to: &lines
+        )
+        for prefix in snapshot.prefixes {
+            var details = [
+                prefix.cidrDescription,
+                "dev \(prefix.interfaceName)",
+                "valid \(lifetime(prefix.validLifetimeSeconds))",
+                "preferred \(lifetime(prefix.preferredLifetimeSeconds))"
+            ]
+            details.append(
+                "RA ["
+                    + listOrNone(prefix.raFlags)
+                    + "]"
+            )
+            if !prefix.stateFlags.isEmpty {
+                details.append(
+                    "state [\(prefix.stateFlags.joined(separator: ","))]"
+                )
+            }
+            details.append(
+                "expires \(expiration(prefix.expiration))"
+            )
+            if !prefix.advertisingRouters.isEmpty {
+                details.append(
+                    "advertised-by ["
+                        + prefix.advertisingRouters.joined(separator: ",")
+                        + "]"
+                )
+            }
+            lines.append(details.joined(separator: " "))
+        }
+
+        lines.append("")
+        lines.append("ND INTERFACES")
+        if let error = snapshot.interfacesError {
+            lines.append("Error: \(error)")
+        } else if snapshot.interfaces.isEmpty,
+           snapshot.interfaceErrors.isEmpty
+        {
+            lines.append("(empty)")
+        }
+        for interface in snapshot.interfaces {
+            var details = [
+                interface.interfaceName,
+                "mtu \(interface.linkMTU)",
+                "max-mtu \(interface.maximumMTU)",
+                "hop-limit \(interface.currentHopLimit)",
+                "base-reachable "
+                    + "\(interface.baseReachableTimeMilliseconds)ms",
+                "reachable \(interface.reachableTimeSeconds)s",
+                "retrans "
+                    + "\(interface.retransmitTimerMilliseconds)ms",
+                "routers \(interface.learnedRouterCount)"
+            ]
+            if !interface.flags.isEmpty {
+                details.append(
+                    "flags [\(interface.flags.joined(separator: ","))]"
+                )
+            }
+            lines.append(details.joined(separator: " "))
+        }
+        for error in snapshot.interfaceErrors {
+            lines.append(
+                "\(error.interfaceName) Error: \(error.message)"
+            )
+        }
+    }
+
+    private static func appendReadErrorOrEmpty(
+        error: String?,
+        isEmpty: Bool,
+        to lines: inout [String]
+    ) {
+        if let error {
+            lines.append("Error: \(error)")
+        } else if isEmpty {
+            lines.append("(empty)")
+        }
+    }
+
+    private static func expiration(_ date: Date?) -> String {
+        guard let date else {
+            return "never"
+        }
+        return ISO8601DateFormatter().string(from: date)
+    }
+
+    private static func lifetime(_ seconds: UInt64) -> String {
+        if seconds == IPv6PrefixEntry.infiniteLifetime {
+            return "infinity"
+        }
+        return "\(seconds)s"
+    }
+
+    private static func listOrNone(_ values: [String]) -> String {
+        values.isEmpty ? "none" : values.joined(separator: ",")
     }
 
     private static func appendNeighbors(

@@ -43,6 +43,8 @@ NetTool 是一个面向 iPhone 和 iPad 的个人网络诊断工具箱。项目�
 - 接口名称、类型、索引、标志、MTU、链路地址和流量统计；
 - 接口 IPv4/IPv6 地址、前缀、广播或点对点地址以及地址分类；
 - IPv4/IPv6 完整路由表，包含目标前缀、网关、接口、标志与路由 MTU；
+- IPv6 RA 默认路由器、前缀、M/O/L/A 标志、生命周期与通告路由器；
+- 物理网络接口的 IPv6 ND MTU、Hop Limit、Reachable 与 Retrans 参数；
 - IPv4 ARP 与 IPv6 NDP Neighbor 缓存的只读快照；
 - 网络信息文本报告导出，并明确区分空缓存与底层读取错误；
 - 应用版本与运行环境页面；
@@ -144,7 +146,7 @@ bash scripts/build_unsigned_ipa.sh
 5. 当前网络
    - 路径、接口、地址、网关与 Neighbor 缓存（已完成）
    - 完整路由表（已实现，待真机验证）
-   - IPv6 RA 内核状态（待真机验证后继续）
+   - IPv6 RA 与 ND 内核状态（已实现，待真机验证）
 
 ## 开源致谢
 
@@ -168,3 +170,8 @@ Neighbor 缓存读取方式参考 Apple 开源的
 
 完整路由表读取方式参考同一项目中 `netstat` 对 `NET_RT_DUMP2` 路由消息的解析。
 应用分别读取 IPv4 和 IPv6 的内核快照，不会用高层路径信息伪造缺失条目。
+
+IPv6 自动配置读取方式参考 `network_cmds/ndp` 的 `-r`、`-p` 和 `-i` 路径，
+解析 XNU 的 `in6_defrouter_64`、`in6_prefix_64` 与 `in6_ondireq` ABI。应用只读
+取内核已保存的 RA/ND 状态，不会主动发送 Router Solicitation；RDNSS、DNSSL 与
+DHCPv6 租约不在该 ABI 的输出范围内。
