@@ -25,55 +25,57 @@ struct DNSView: View {
             }
             .disabled(model.isRunning)
 
-            Section("传输") {
-                Picker("协议", selection: $model.transport) {
-                    ForEach(DNSTransport.allCases) { transport in
-                        Text(transport.title)
-                            .tag(transport)
+            Section("解析方式") {
+                Picker("方式", selection: $model.queryMode) {
+                    ForEach(DNSQueryMode.allCases) { queryMode in
+                        Text(queryMode.title)
+                            .tag(queryMode)
                     }
                 }
                 .pickerStyle(.segmented)
 
-                switch model.transport {
-                case .udp, .tcp:
-                    EditableTargetComboBox(
-                        prompt: "DNS 服务器",
-                        transport: model.transport,
-                        value: $model.standardServer
-                    )
+                if !model.isSystemQuery {
+                    switch model.transport {
+                    case .udp, .tcp:
+                        EditableTargetComboBox(
+                            prompt: "DNS 服务器",
+                            transport: model.transport,
+                            value: $model.standardServer
+                        )
 
-                    TextField(
-                        "端口",
-                        value: $model.standardPort,
-                        format: .number.grouping(.never)
-                    )
-                    .keyboardType(.numberPad)
-                case .tls:
-                    EditableTargetComboBox(
-                        prompt: "DoT 服务器",
-                        transport: .tls,
-                        value: $model.tlsServer
-                    )
+                        TextField(
+                            "端口",
+                            value: $model.standardPort,
+                            format: .number.grouping(.never)
+                        )
+                        .keyboardType(.numberPad)
+                    case .tls:
+                        EditableTargetComboBox(
+                            prompt: "DoT 服务器",
+                            transport: .tls,
+                            value: $model.tlsServer
+                        )
 
-                    TextField(
-                        "端口",
-                        value: $model.tlsPort,
-                        format: .number.grouping(.never)
-                    )
-                    .keyboardType(.numberPad)
-                case .https:
-                    EditableTargetComboBox(
-                        prompt: "DoH URL",
-                        transport: .https,
-                        value: $model.httpsURL
-                    )
+                        TextField(
+                            "端口",
+                            value: $model.tlsPort,
+                            format: .number.grouping(.never)
+                        )
+                        .keyboardType(.numberPad)
+                    case .https:
+                        EditableTargetComboBox(
+                            prompt: "DoH URL",
+                            transport: .https,
+                            value: $model.httpsURL
+                        )
 
-                    TextField(
-                        "端口",
-                        value: $model.httpsPort,
-                        format: .number.grouping(.never)
-                    )
-                    .keyboardType(.numberPad)
+                        TextField(
+                            "端口",
+                            value: $model.httpsPort,
+                            format: .number.grouping(.never)
+                        )
+                        .keyboardType(.numberPad)
+                    }
                 }
 
                 Stepper(
@@ -87,10 +89,12 @@ struct DNSView: View {
                     )
                 }
 
-                Toggle(
-                    "请求递归（RD）",
-                    isOn: $model.recursionDesired
-                )
+                if !model.isSystemQuery {
+                    Toggle(
+                        "请求递归（RD）",
+                        isOn: $model.recursionDesired
+                    )
+                }
             }
             .disabled(model.isRunning)
 
@@ -143,6 +147,16 @@ struct DNSView: View {
                 }
             }
 
+            if let result = model.systemResult {
+                DNSRecordSection(
+                    title: "Answer",
+                    records: result.records,
+                    showsEmptyState: true
+                )
+
+                SystemDNSResponseOverview(result: result)
+            }
+
             if let errorMessage = model.errorMessage {
                 Section("错误") {
                     Text(errorMessage)
@@ -177,6 +191,25 @@ struct DNSView: View {
             .font(.caption.monospaced())
             .foregroundStyle(.secondary)
             .textSelection(.enabled)
+    }
+}
+
+private struct SystemDNSResponseOverview: View {
+    let result: SystemDNSQueryResult
+
+    var body: some View {
+        Section("响应") {
+            LabeledContent("状态", value: "完成")
+            LabeledContent("方式", value: "系统")
+            LabeledContent("解析器", value: "系统默认")
+            LabeledContent(
+                "耗时",
+                value: String(
+                    format: "%.3f ms",
+                    result.roundTripTimeMilliseconds
+                )
+            )
+        }
     }
 }
 

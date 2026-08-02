@@ -108,6 +108,18 @@ public enum DNSMessageCodec {
         )
     }
 
+    public static func parseRecordData(
+        typeCode: UInt16,
+        bytes: [UInt8]
+    ) throws -> DNSRecordData {
+        let reader = DNSReader(bytes: bytes)
+        return try reader.parseRecordData(
+            typeCode: typeCode,
+            start: 0,
+            end: bytes.count
+        )
+    }
+
     public static func hexadecimalString(for bytes: [UInt8]) -> String {
         bytes.enumerated().map { index, byte in
             let value = String(format: "%02x", Int(byte))

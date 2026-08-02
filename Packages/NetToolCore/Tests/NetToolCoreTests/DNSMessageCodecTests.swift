@@ -149,6 +149,45 @@ struct DNSMessageCodecTests {
         #expect(response.answers.first?.data == .raw([1, 2, 3, 4]))
     }
 
+    @Test("Standalone resource data uses the shared record decoder")
+    func parsesStandaloneRecordData() throws {
+        #expect(
+            try DNSMessageCodec.parseRecordData(
+                typeCode: DNSRecordType.a.rawValue,
+                bytes: [192, 0, 2, 1]
+            ) == .a("192.0.2.1")
+        )
+        #expect(
+            try DNSMessageCodec.parseRecordData(
+                typeCode: DNSRecordType.mx.rawValue,
+                bytes: [
+                    0, 10,
+                    0x04, 0x6d, 0x61, 0x69, 0x6c,
+                    0x07, 0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65,
+                    0x03, 0x63, 0x6f, 0x6d,
+                    0
+                ]
+            ) == .mx(
+                preference: 10,
+                exchange: "mail.example.com."
+            )
+        )
+    }
+
+    @Test("Malformed standalone resource data is rejected")
+    func rejectsMalformedStandaloneRecordData() {
+        #expect(
+            throws: DNSCodecError.invalidRecordData(
+                typeCode: DNSRecordType.a.rawValue
+            )
+        ) {
+            try DNSMessageCodec.parseRecordData(
+                typeCode: DNSRecordType.a.rawValue,
+                bytes: [192, 0, 2]
+            )
+        }
+    }
+
     @Test("Compression loops are rejected")
     func rejectsCompressionLoop() {
         let message: [UInt8] = [

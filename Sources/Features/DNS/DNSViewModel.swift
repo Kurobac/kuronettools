@@ -2,12 +2,52 @@ import Foundation
 import NetToolCore
 import Observation
 
+enum DNSQueryMode: String, CaseIterable, Identifiable, Sendable {
+    case system
+    case udp
+    case tcp
+    case tls
+    case https
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .system:
+            "系统"
+        case .udp:
+            "UDP"
+        case .tcp:
+            "TCP"
+        case .tls:
+            "DoT"
+        case .https:
+            "DoH"
+        }
+    }
+
+    var directTransport: DNSTransport? {
+        switch self {
+        case .system:
+            nil
+        case .udp:
+            .udp
+        case .tcp:
+            .tcp
+        case .tls:
+            .tls
+        case .https:
+            .https
+        }
+    }
+}
+
 @MainActor
 @Observable
 final class DNSViewModel {
     var name = "example.com"
     var recordType = DNSRecordType.a
-    var transport = DNSTransport.udp
+    var queryMode = DNSQueryMode.udp
     var standardServer = "1.1.1.1"
     var standardPort = 53
     var tlsServer = "1.1.1.1"
@@ -18,6 +58,7 @@ final class DNSViewModel {
     var recursionDesired = true
 
     private(set) var result: DNSQueryResult?
+    private(set) var systemResult: SystemDNSQueryResult?
     private(set) var errorMessage: String?
     private(set) var statusMessage: String?
     private(set) var isRunning = false
@@ -27,7 +68,21 @@ final class DNSViewModel {
     private let client = DNSQueryClient()
 
     @ObservationIgnored
+    private let systemClient = SystemDNSQueryClient()
+
+    @ObservationIgnored
     private var runTask: Task<Void, Never>?
+
+    var isSystemQuery: Bool {
+        queryMode == .system
+    }
+
+    var transport: DNSTransport {
+        guard let transport = queryMode.directTransport else {
+            preconditionFailure("System DNS has no direct transport")
+        }
+        return transport
+    }
 
     var activeServer: String {
         switch transport {
@@ -52,7 +107,7 @@ final class DNSViewModel {
     }
 
     var activeTLSServerName: String? {
-        guard transport == .tls else {
+        guard queryMode == .tls else {
             return nil
         }
 
@@ -71,6 +126,75 @@ final class DNSViewModel {
 
         resetResult()
 
+        if isSystemQuery {
+            startSystemQuery(logStore: logStore)
+        } else {
+            startDirectQuery(logStore: logStore)
+        }
+    }
+
+    private func startSystemQuery(logStore: AppLogStore) {
+        let configuration: SystemDNSQueryConfiguration
+        do {
+            configuration = try SystemDNSQueryConfiguration(
+                name: name,
+                type: recordType,
+                timeoutSeconds: timeoutSeconds
+            ).validated()
+        } catch {
+            errorMessage = error.localizedDescription
+            statusMessage = "参数错误"
+            return
+        }
+
+        isRunning = true
+        isStopping = false
+        statusMessage = "正在查询…"
+        logStore.append(
+            level: .info,
+            message: "开始系统 DNS：\(configuration.name) "
+                + configuration.type.title
+        )
+
+        let systemClient = systemClient
+        runTask = Task { [weak self] in
+            guard let self else {
+                return
+            }
+            defer {
+                self.isRunning = false
+                self.isStopping = false
+                self.runTask = nil
+            }
+
+            do {
+                let result = try await systemClient.query(
+                    configuration: configuration
+                )
+                try Task.checkCancellation()
+
+                self.systemResult = result
+                self.statusMessage = "完成"
+                logStore.append(
+                    level: .info,
+                    message: "系统 DNS 完成："
+                        + "\(result.records.count) 条记录，"
+                        + "\(format(result.roundTripTimeMilliseconds)) ms"
+                )
+            } catch is CancellationError {
+                self.statusMessage = "已取消"
+            } catch {
+                self.errorMessage = error.localizedDescription
+                self.statusMessage = "失败"
+                logStore.append(
+                    level: .error,
+                    message: "系统 DNS 失败：" + error.localizedDescription
+                )
+            }
+        }
+    }
+
+    private func startDirectQuery(logStore: AppLogStore) {
         let configuration: DNSQueryConfiguration
         do {
             configuration = try DNSQueryConfiguration(
@@ -157,11 +281,15 @@ final class DNSViewModel {
         runTask?.cancel()
         logStore.append(
             level: .warning,
-            message: "取消 \(transport.title) DNS：\(name)"
+            message: "取消 \(queryMode.title) DNS：\(name)"
         )
     }
 
     var exportText: String {
+        if let systemResult {
+            return systemExportText(systemResult)
+        }
+
         guard let result else {
             if let errorMessage {
                 return "Error: \(errorMessage)"
@@ -237,8 +365,34 @@ final class DNSViewModel {
 
     private func resetResult() {
         result = nil
+        systemResult = nil
         errorMessage = nil
         statusMessage = nil
+    }
+
+    private func systemExportText(
+        _ result: SystemDNSQueryResult
+    ) -> String {
+        var lines = [
+            ";; SYSTEM RESOLVER",
+            ";; QUESTION: \(result.name) IN \(result.type.title)",
+            "",
+            ";; ANSWER SECTION:"
+        ]
+        for record in result.records {
+            lines.append(
+                "\(record.name)\t\(record.timeToLive)\t"
+                    + "\(record.className)\t\(record.typeName)\t"
+                    + record.data.displayValue
+            )
+        }
+        lines.append("")
+        lines.append(
+            ";; Query time: "
+                + "\(format(result.roundTripTimeMilliseconds)) msec"
+        )
+        lines.append(";; RESOLVER: System default")
+        return lines.joined(separator: "\n")
     }
 
     private func appendQuestions(
